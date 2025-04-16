@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 const GRID_SIZE = 8; // 8x8 grid like minisweeper
 
@@ -19,6 +20,10 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <h1 className="text-3xl font-bold mb-6">bot attack</h1>
+      <div className="mb-6">
+        <ConnectButton />
+      </div>
       <div className="grid grid-cols-8 gap-2">
         {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, idx) => {
           const row = Math.floor(idx / GRID_SIZE);

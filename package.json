@@ -9,10 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.4",
     "daisyui": "^5.0.20",
     "next": "15.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "viem": "^2.27.0",
+    "wagmi": "^2.14.16"
   },
   "devDependencies": {
     "typescript": "^5",
