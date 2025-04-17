@@ -10,10 +10,14 @@
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.4",
+    "@zoralabs/coins-sdk": "^0.0.8",
     "daisyui": "^5.0.20",
+    "ky": "^1.8.1",
     "next": "15.3.0",
+    "openai": "^4.95.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "together-ai": "^0.15.0",
     "viem": "^2.27.0",
     "wagmi": "^2.14.16"
   },
