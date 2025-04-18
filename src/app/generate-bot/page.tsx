@@ -16,8 +16,30 @@ export default function MarketplacePage() {
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      const { images } = await ky.post('/api/generate-bot', { json: { prompt } }).json<{ images: string[] }>();
+      const { images } = await ky.post('/api/generate-bot', { json: { prompt }, timeout: 100000 }).json<{ images: string[] }>();
       setImages(images);
+      if (images.length === 1) {
+        try {
+          // parse JSON response, strip ```json fences if present
+          const raw = await ky.post('/api/describe-image', { json: { base64Image: images[0] }, timeout: 100000 }).json();
+          let parsedObj: any;
+          if (typeof raw === 'string') {
+            const stripped = raw.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+            parsedObj = JSON.parse(stripped);
+          } else {
+            parsedObj = raw;
+          }
+          // ensure fields are always strings to keep inputs controlled
+          const generatedName = parsedObj.name ?? "";
+          const generatedDescription = parsedObj.description ?? "";
+          const generatedSymbol = parsedObj.symbol ?? "";
+          setName(generatedName);
+          setDescription(generatedDescription);
+          setSymbol(generatedSymbol);
+        } catch (error) {
+          console.error("Error describing image:", error);
+        }
+      }
     } catch (error) {
       console.error(error);
     }
@@ -58,32 +80,39 @@ export default function MarketplacePage() {
             </div>
             {images.length > 0 && (
               <>
-                <div className="w-full flex flex-col gap-2">
+                <div className="w-full flex flex-col gap-2 mt-2">
+                  <label className="text-sm font-medium mb-1">Name</label>
                   <input
                     type="text"
                     placeholder="Name"
                     className="input input-bordered w-full mb-2"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    disabled={loading}
                   />
+                  <label className="text-sm font-medium mb-1">Description</label>
                   <input
                     type="text"
                     placeholder="Description"
                     className="input input-bordered w-full mb-2"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    disabled={loading}
                   />
+                  <label className="text-sm font-medium mb-1">Symbol</label>
                   <input
                     type="text"
                     placeholder="Symbol"
                     className="input input-bordered w-full mb-4"
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
                 <button
                   className="btn btn-secondary w-full mt-4 mb-4"
                   type="button"
+                  disabled={loading}
                 >
                   Create Coin
                 </button>
