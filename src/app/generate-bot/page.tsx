@@ -2,9 +2,11 @@
 import React, { useState } from "react";
 import ky from 'ky';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { createCoinCall } from "@zoralabs/coins-sdk";
+import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
 import { Address } from "viem";
-import { useWriteContract, useAccount } from "wagmi";
+import { useWriteContract, useAccount,useWaitForTransactionReceipt} from "wagmi";
+import { getTransactionReceipt } from '@wagmi/core';
+import { config } from "@/app/providers";
 export default function MarketplacePage() {
   const [prompt, setPrompt] = useState<string>("a coin with robot inside of the coin");
   const [images, setImages] = useState<string[]>([]);
@@ -15,8 +17,14 @@ export default function MarketplacePage() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract(); // make writeContractAsync available via hook at top-level
   const [coinCreated, setCoinCreated] = useState<boolean>(false);
-  const [txHash, setTxHash] = useState<string | undefined>(undefined);
-
+  const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const [coinAddress, setCoinAddress] = useState<string | undefined>(undefined);
+  const [showAddress, setShowAddress] = useState<boolean>(false);
+  const [metadataId, setMetadataId] = useState<number | undefined>(undefined);
+  const { isLoading: isConfirming, isSuccess: isConfirmed,isError } =
+  useWaitForTransactionReceipt({
+    hash: txHash,
+  })
   const handleGenerate = async () => {
     setLoading(true);
     try {
@@ -52,16 +60,18 @@ export default function MarketplacePage() {
 
   const handleCreateCoin = async () => {
     const { success, result } = await ky.post('/api/create-data', {
-      json: { collection: 'metadata', data: { name, description, image: `data:image/png;base64,${images[0]}`, address } }
+      json: { collection: 'metadata', data: { name, description, image: `data:image/png;base64,${images[0]}`, owner:address } }
     }).json<{ success: boolean; result: { $loki: number } }>();
     // result has LOKI metadata: { ... , $loki: id }
     const id = result.$loki;
+    setMetadataId(id);
     const uri = `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${id}`;
     const coinParams = {
       name,
       symbol,
       uri,
-      payoutRecipient: address as Address
+      payoutRecipient: address as Address,
+      tickLower:-199200
     };
     const contractCallParams = await createCoinCall(coinParams);
     
@@ -69,24 +79,33 @@ export default function MarketplacePage() {
       // Add gas parameters to fix "intrinsic gas too low" error
       const tx = await writeContractAsync({
         ...contractCallParams,
-        gas: 30000000n, // Significantly higher gas limit
-        // Removed gasPrice to avoid type mismatch with EIP-1559 vs EIP-2930
+        gas: 1000000n
       });
       setTxHash(tx);
-      // record transaction in 'transactions' collection
-      await ky.post('/api/create-data', {
-        json: {
-          collection: 'transactions',
-          data: {
-            txHash: tx,
-            address,
-            metadata_id: id
-          }
-        }
-      }).json<{ success: boolean; result: { $loki: number } }>();
       setCoinCreated(true);
     } catch (error) {
       console.error('Error creating coin:', error);
+    }
+  };
+
+  const recordCoinDeployment = async (txHash: `0x${string}`, metadataId: number): Promise<string | undefined> => {
+    const receipt = await getTransactionReceipt(config, { hash: txHash });
+    const coinDeployment = getCoinCreateFromLogs(receipt);
+    const coin = coinDeployment?.coin;
+    await ky.post('/api/create-data', {
+      json: {
+        collection: 'transactions',
+        data: { txHash, address: coin, metadata_id: metadataId },
+      },
+    }).json<{ success: boolean; result: { $loki: number } }>();
+    return coin;
+  };
+
+  const handleShowAddress = async () => {
+    if (txHash && metadataId !== undefined) {
+      const coin = await recordCoinDeployment(txHash, metadataId);
+      setCoinAddress(coin);
+      setShowAddress(true);
     }
   };
 
@@ -97,6 +116,9 @@ export default function MarketplacePage() {
     setDescription("");
     setSymbol("");
     setTxHash(undefined);
+    setCoinAddress(undefined);
+    setShowAddress(false);
+    setMetadataId(undefined);
   };
 
   return (
@@ -176,7 +198,7 @@ export default function MarketplacePage() {
         )}
         {isConnected && coinCreated && (
           <div className="w-full">
-            <p className="text-lg font-medium mb-2 text-center mt-4">🎉 Congratulations! Your coin is created! 🎉</p>
+            
             {/* Display coin preview and metadata */}
             <div className="flex flex-col items-center gap-2 mt-4">
               <img
@@ -188,16 +210,47 @@ export default function MarketplacePage() {
               <p><strong>Description:</strong> {description}</p>
               <p><strong>Symbol:</strong> {symbol}</p>
               {txHash && (
-                <p><strong>Transaction Hash:</strong> {txHash}</p>
+                <p><strong>Transaction Hash:</strong> <a href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer">{txHash.slice(0, 6)}...{txHash.slice(-6)}</a></p>
+              )}
+               
+              {isConfirming && (
+                <p><strong>Confirming...</strong></p>
+              )}
+              {isConfirmed && !showAddress && (
+                <button
+                  className="btn btn-secondary w-full mt-4 mb-4"
+                  type="button"
+                  onClick={handleShowAddress}
+                >
+                  Show Address
+                </button>
+              )}
+              {isConfirmed && showAddress && (
+                <>
+                <p className="text-lg font-medium mb-2 text-center mt-4">🎉 Congratulations! Your coin is created! 🎉</p>
+                  <p><strong>Coin Address:</strong> <a href={`https://etherscan.io/address/${coinAddress}`}>{coinAddress?.slice(0, 6)}...{coinAddress?.slice(-6)}</a></p>
+                  <button
+                    className="btn btn-primary w-full mt-4 mb-4"
+                    type="button"
+                    onClick={handleGenerateAgain}
+                  >
+                    Generate Again
+                  </button>
+                </>
+              )}
+              {isError && (
+                              <div>
+                <div className="text-red-500 mb-4">Failed to create coin</div>
+                <button
+                  className="btn btn-primary w-full mt-4 mb-4"
+                  type="button"
+                  onClick={handleGenerateAgain}
+                >
+                  Generate Again
+                </button>
+              </div>
               )}
             </div>
-            <button
-              className="btn btn-primary w-full mt-4 mb-4"
-              type="button"
-              onClick={handleGenerateAgain}
-            >
-              Generate Again
-            </button>
           </div>
         )}
       </div>

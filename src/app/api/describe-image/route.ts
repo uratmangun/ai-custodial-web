@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       {
         role: "user",
         content: [
-          { type: "text", text: "Create a token based on this image" },
+          { type: "text", text: "Create a token based on this image, i want you to describe the image as a fighter robot making it unique" },
           {
             type: "image_url",
             image_url: {
