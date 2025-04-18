@@ -33,7 +33,7 @@ export default function Home() {
           className="btn btn-secondary text-xl px-8 py-4 shadow-lg"
           type="button"
         >
-          Marketplace
+          Trade coin
         </button>
       </div>
       <h1 className="text-3xl font-bold mb-6 mt-20">bot attack</h1>
