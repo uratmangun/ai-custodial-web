@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem'
 import { getPublicClient } from 'wagmi/actions'
-import { getCoinsTopGainers } from "@zoralabs/coins-sdk";
+import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -189,10 +189,38 @@ export default function Home() {
         }
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const addressParam = args.address || address;
+        const nextPage = args.next_page;
         const balance = await getBalance(addressParam);
-        const display = addressParam
+        const response = await getProfileBalances({
+          identifier: addressParam, // Can also be zora user profile handle
+          count: 20,        // Optional: number of balances per page
+          after: nextPage, // Optional: for pagination
+        });
+       
+        const profile: any = response.data?.profile;
+        
+        const coinBalances = profile.coinBalances?.edges || [];
+        const pageInfo = profile.coinBalances?.pageInfo;
+        const lines: string[] = [];
+        lines.push(addressParam
           ? `Balance for ${addressParam === address ? 'your wallet' : addressParam}: ${balance} ETH`
-          : 'No address available';
+          : 'No address available');
+        if (chainId !== 8453) {
+          lines.push('Please switch to base chain to see full list of zora coin balances');
+        } else {
+          lines.push(`Found ${coinBalances.length} coin balances:`);
+          coinBalances.forEach((item: any, idx: number) => {
+            const bal = item.node;
+            lines.push(`${idx + 1}. ${bal.coin?.name || 'Unknown'} (${bal.coin?.symbol || 'N/A'})`);
+            lines.push(`   Balance: ${Number(bal.balance) / 1e18} ${bal.coin?.symbol || 'N/A'}`);
+            lines.push(`   Token address: ${bal.coin?.address || 'N/A'}`);
+            lines.push('-----------------------------------');
+          });
+          if (pageInfo?.endCursor) {
+            lines.push(`Next page cursor: ${pageInfo.endCursor}`);
+          }
+        }
+        const display = lines.join('\n');
         setMessages(prev => [...prev, display]);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
@@ -206,17 +234,38 @@ export default function Home() {
       } else if (toolName === 'get_coin_top_gainers') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const nextPage = args.next_page;
-        let data;
+        if (chainId!==8453) {
+          setToastError('Please switch to base first');
+          return;
+        }
+        let response;
         try {
-          data = await getCoinsTopGainers({  count: 10,        // Optional: number of coins per page
+          response = await getCoinsTopGainers({  count: 10,        // Optional: number of coins per page
             after: nextPage,  });
         } catch (error) {
           setToastError(error instanceof Error ? error.message : 'Error fetching top gainers');
           return;
         }
-        const coins = data.coins || [];
-        const formatted = coins.map((c: any) => `${c.name} (${c.symbol}): ${c.priceChange}%`).join(', ');
-        const aiMsg = `Top gaining coins: ${formatted}${data.nextPage ? ' Next page: ' + data.nextPage : ''}`;
+        const coins = response.data?.exploreList?.edges?.map((edge: any) => edge.node) || [];
+        const aiMsgLines: string[] = [];
+        aiMsgLines.push(`Top Gainers (${coins.length} coins):`);
+        coins.forEach((coin: any, index: number) => {
+          const percentChange = coin.priceChange
+            ? `${parseFloat(coin.priceChange).toFixed(2)}%`
+            : "N/A";
+          aiMsgLines.push(`${index + 1}. ${coin.name} (${coin.symbol})`);
+          aiMsgLines.push(`   24h Change: ${percentChange}`);
+          aiMsgLines.push(`   Market Cap: ${coin.marketCap ?? 'N/A'}`);
+          aiMsgLines.push(`   Volume 24h: ${coin.volume24h ?? 'N/A'}`);
+          aiMsgLines.push(`   Token address: ${coin.address}`);
+          aiMsgLines.push(`   Owner address: ${coin.creatorAddress}`);
+          aiMsgLines.push('-----------------------------------');
+        });
+        const nextPageCursor = response.data?.exploreList?.pageInfo?.endCursor;
+        if (nextPageCursor) {
+          aiMsgLines.push(`Next page cursor: ${nextPageCursor}`);
+        }
+        const aiMsg = aiMsgLines.join(`\n`);
         setMessages(prev => [...prev, aiMsg]);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
@@ -226,7 +275,113 @@ export default function Home() {
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+      } else if (toolName === 'check_coin') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const coinAddress = args.address;
+        const chain = args.chainId || 'base';
+        const chainIdDisplay = chain === 'base' ? 8453 : 84532;
+        let response;
+        try {
+          response = await getCoin({
+            address: coinAddress,
+            chain: chainIdDisplay,
+          });
+        } catch (err) {
+          setToastError('Failed to fetch coin details');
+          setLoadingToolCalls(prev => {
+            const arr = prev.map(inner => [...inner]);
+            if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
+            return arr;
+          });
+          return;
+        }
+        
+       
+        const coin = response.data?.zora20Token;
+       
+        if (!coin) {
+          setMessages(prev => [...prev, `Coin not found for address: ${coinAddress}`]);
+        } else {
+          const lines: string[] = [];
+          lines.push(`Coin: ${coin.name} (${coin.symbol})`);
+          lines.push(`Address: ${coin.address}`);
+          lines.push(`Chain: ${chainIdDisplay}`);
+          if (coin.description) lines.push(`Description: ${coin.description}`);
+          lines.push(`Total Supply: ${coin.totalSupply ?? 'N/A'}`);
+          lines.push(`Market Cap: ${coin.marketCap ?? 'N/A'}`);
+          lines.push(`24h Volume: ${coin.volume24h ?? 'N/A'}`);
+          lines.push(`Owner: ${coin.creatorAddress ?? 'N/A'}`);
+          lines.push(`Created At: ${coin.createdAt ?? 'N/A'}`);
+          lines.push(`Unique Holders: ${coin.uniqueHolders ?? 'N/A'}`);
+          if (coin.mediaContent?.previewImage) {
+            lines.push(`![Preview Image](${coin.mediaContent.previewImage.small})`);
+          }
+          setMessages(prev => [...prev, lines.join('\n')]);
+        }
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
         setLoadingToolCalls(prev => [...prev, []]);
+        return;
+      } else if (toolName === 'get_coin_comment') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const coinAddress = args.address;
+        const chain = args.chain || 'base';
+        const nextPage = args.next_page;
+        let response;
+        try {
+          response = await getCoinComments({
+            address: coinAddress,
+            chain: chain === 'base' ? 8453 : 84532,
+            after: nextPage,
+          });
+        } catch (err) {
+          setToastError('Failed to fetch coin comments');
+          setLoadingToolCalls(prev => {
+            const arr = prev.map(inner => [...inner]);
+            if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
+            return arr;
+          });
+          return;
+        }
+        const comments = response.data?.zora20Token?.zoraComments?.edges || [];
+        const pageInfo = response.data?.zora20Token?.zoraComments?.pageInfo;
+        const lines: string[] = [];
+        lines.push(`Comments for coin ${coinAddress} (${chain}):`);
+        comments.forEach((item: any, idx: number) => {
+          const comment = item.node;
+          // Assume comment.timestamp is either seconds or ISO string
+          let readableDate = '';
+          if (typeof comment.timestamp === 'number') {
+            readableDate = new Date(comment.timestamp * 1000).toLocaleString();
+          } else if (typeof comment.timestamp === 'string') {
+            readableDate = new Date(comment.timestamp).toLocaleString();
+          }
+          lines.push(`${idx + 1}. ${comment.comment}`);
+          lines.push(`   User: ${comment.userAddress}`);
+          lines.push(`   Handle: ${comment.userProfile?.handle ?? 'N/A'}`);
+          lines.push(`   At: ${readableDate}`);
+          lines.push('-----------------------------------');
+        });
+        if (pageInfo?.endCursor) {
+          lines.push(`Next page cursor: ${pageInfo.endCursor}`);
+        }
+        setMessages(prev => [...prev, lines.join('\n')]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+        setLoadingToolCalls(prev => [...prev, []]);
+        return;
       }
     } catch (err) {
       console.error(err);
@@ -295,7 +450,7 @@ export default function Home() {
               if (!isUserMessage[idx] && toolCalls[idx] && toolCalls[idx].length > 0) {
                 return (
                   <div key={idx} className="mb-4 flex justify-start">
-                    <div className="relative rounded-lg px-4 py-2 bg-yellow-100 text-black max-w-[80%]">
+                    <div className="relative rounded-lg px-4 py-2 bg-yellow-100 text-black max-w-[80%]" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       <span className="absolute -top-4 right-0 text-xs text-black">{usernames[idx]}</span>
                       <p className="text-sm font-semibold">Tool calls:</p>
                       {toolCalls[idx].map((tc, tcIdx) => (
@@ -363,7 +518,7 @@ export default function Home() {
                 <div key={idx} className={`mb-4 flex ${isUserMessage[idx] ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex flex-col items-end max-w-[80%]`}>
                     <span className="text-xs mb-1 text-black text-right self-end">{usernames[idx]}</span>
-                    <div className={`rounded-lg px-4 py-2 ${isUserMessage[idx] ? 'bg-black text-white' : 'bg-gray-200 text-black'}`}>
+                    <div className={`rounded-lg px-4 py-2 ${isUserMessage[idx] ? 'bg-black text-white' : 'bg-gray-200 text-black'}`} style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {isUserMessage[idx] ? (
                         <p className="text-sm">{msg}</p>
                       ) : (

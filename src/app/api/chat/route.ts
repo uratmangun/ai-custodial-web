@@ -65,6 +65,10 @@ export async function POST(request: Request) {
                 type: "string",
                 description: "Optional user address.",
               },
+              next_page: {
+                type: "string",
+                description: "Optional pagination cursor for next page of balances.",
+              },
             },
             additionalProperties: false,
           },
@@ -87,6 +91,56 @@ export async function POST(request: Request) {
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "check_coin",
+          description: "Get details for a single coin by address. Optionally specify chainId (base or baseSepolia, default is base).",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "Coin contract address.",
+              },
+              chainId: {
+                type: "string",
+                enum: ["base", "baseSepolia"],
+                description: "Chain to query. Optional, defaults to base.",
+              },
+            },
+            required: ["address"],
+            additionalProperties: false,
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_coin_comment",
+          description: "Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination.",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "Coin contract address.",
+              },
+              chain: {
+                type: "string",
+                enum: ["base", "baseSepolia"],
+                description: "Chain to query. Optional, defaults to base.",
+              },
+              next_page: {
+                type: "string",
+                description: "Optional pagination token for the next page.",
+              },
+            },
+            required: ["address"],
+            additionalProperties: false,
+          },
+        },
+      },
     ];
     const systemMessage = {
       role: "system",
@@ -97,8 +151,10 @@ Available tool calls:
   - check_address: Get the connected wallet address.
   - check_balance: Get the balance of the connected wallet or specified token.
   - get_coin_top_gainers: Get the top gaining coins on Base networks. Optional pagination parameter next_page.
+  - check_coin: Get details for a single coin by address. Optionally specify chainId (base or baseSepolia, default is base).
+  - get_coin_comment: Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination.
 
-If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers"`,
+If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
