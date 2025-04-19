@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI custodial web
 
-## Getting Started
+An AI-powered chat interface built with Next.js that lets you query and interact with the Base and Base Sepolia blockchains. It leverages the Zora Coins SDK to fetch on-chain data (balances, top gainers, coin details, and comments) and defines tool functions (switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment). Responses are formatted with human-readable ETH units, markdown previews, and paginated comments with user handles and timestamps. The application runs in Docker using pnpm and is publicly accessible via a Cloudflare Tunnel.
 
-First, run the development server:
+# Web demo
+https://instant-grid-removing-accessible.trycloudflare.com/
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+# Video demo
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# List of tools
+ - `switch_chain`: Switch between Ethereum blockchains. Default is `baseSepolia`.
+ - `current_chain`: Get the current active blockchain chain.
+ - `check_address`: Get the connected wallet address.
+ - `check_balance`: Get the balance of the connected wallet or specified ERC-20 token. Optional parameters:
+   - `address` (string): user or token contract address.
+   - `next_page` (string): pagination cursor.
+ - `get_coin_top_gainers`: Get the top gaining coins on Zora. Optional parameter:
+   - `next_page` (string): pagination cursor.
+ - `check_coin`: Get details for a single coin by its address. Optional parameter:
+   - `chainId` ("base" | "baseSepolia"): chain to query (default is `base`).
+ - `get_coin_comment`: Get comments for a single coin by its address. Optional parameters:
+   - `chain` ("base" | "baseSepolia"): chain to query (default is `base`).
+   - `next_page` (string): pagination cursor.
+# How to run with docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Prerequisites
+- Copy `.env.example` to `.env` and fill in your API keys.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Build and Start
+1. Build the Docker image:
+    ```fish
+    docker build -t ai-custodial-web .
+    ```
+2. Create (or reuse) a Docker network for the tunnel:
+    ```fish
+    docker network create cf-net
+    ```
+3. Run your Next.js app container on `cf-net`:
+    ```fish
+    docker run -d \
+      --network cf-net \
+      --env-file .env \
+      --name ai-custodial-web \
+      ai-custodial-web
+    ```
+4. Run the Cloudflare Tunnel on the same network:
+    ```fish
+    docker run -d \
+      --network cf-net \
+      --name cf-tunnel \
+      cloudflare/cloudflared:latest tunnel --url http://ai-custodial-web:3000
+    ```
+5. Check the tunnel logs for your public URL:
+    ```fish
+    docker logs -f cf-tunnel
+    ```
