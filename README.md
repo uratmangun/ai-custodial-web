@@ -6,7 +6,7 @@ An AI-powered chat interface built with Next.js that lets you query and interact
 https://instant-grid-removing-accessible.trycloudflare.com/
 
 # Video demo
-
+https://youtu.be/XgQppscv380
 
 # List of tools
  - `switch_chain`: Switch between Ethereum blockchains. Default is `baseSepolia`.
