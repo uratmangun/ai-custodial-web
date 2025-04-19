@@ -12,17 +12,60 @@ export async function POST(request: Request) {
       {
         type: "function",
         function: {
-          name: "get_weather",
-          description: "Get current temperature for a given location.",
+          name: "switch_chain",
+          description: "Switch between Ethereum blockchains. Default is baseSepolia.",
           parameters: {
             type: "object",
             properties: {
-              location: {
+              chain: {
                 type: "string",
-                description: "City and country e.g. Bogotá, Colombia",
+                description: "The chain to switch to: base or baseSepolia",
+                enum: ["base", "baseSepolia"],
+                default: "baseSepolia",
               },
             },
-            required: ["location"],
+            required: ["chain"],
+            additionalProperties: false,
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "current_chain",
+          description: "Get the current active blockchain chain.",
+          parameters: {
+            type: "object",
+            properties: {},
+            additionalProperties: false,
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "check_address",
+          description: "Get the connected wallet address.",
+          parameters: {
+            type: "object",
+            properties: {},
+            additionalProperties: false,
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "check_balance",
+          description: "Get the balance of the connected wallet or an ERC-20 token if address is provided.",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "Optional user address.",
+              },
+            },
             additionalProperties: false,
           },
         },
@@ -30,10 +73,14 @@ export async function POST(request: Request) {
     ];
     const systemMessage = {
       role: "system",
-      content: `You can only use the following tool calls:
- - get_weather: Get current temperature for a given location.
+      content: `This chatbot is intended solely for interacting with the Base Ethereum and Base Sepolia networks.
+Available tool calls:
+  - switch_chain: Switch between Ethereum blockchains. Default is baseSepolia.
+  - current_chain: Get the current active blockchain chain.
+  - check_address: Get the connected wallet address.
+  - check_balance: Get the balance of the connected wallet or specified token.
 
-If a question falls outside these tools, respond "I cannot answer that question. Here are the available tool calls: get_weather"`,
+If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({

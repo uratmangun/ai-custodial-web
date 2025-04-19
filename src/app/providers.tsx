@@ -1,7 +1,8 @@
 "use client"
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
- baseSepolia
+ baseSepolia,
+ base
 } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,7 +11,7 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 export const config = getDefaultConfig({
   appName: 'RainbowKit demo',
   projectId: 'YOUR_PROJECT_ID',
-  chains: [baseSepolia],
+  chains: [baseSepolia,base],
   ssr: true,
 });
 const queryClient = new QueryClient();

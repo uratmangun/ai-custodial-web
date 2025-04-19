@@ -3,15 +3,15 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
-
-const GRID_SIZE = 8; // 8x8 grid like minisweeper
+import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
 
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSquare, setSelectedSquare] = useState<{ row: number; col: number } | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [messageRoles, setMessageRoles] = useState<('user'|'assistant'|'tool')[]>([]);
+  const [messageToolCallIds, setMessageToolCallIds] = useState<string[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isUserMessage, setIsUserMessage] = useState<boolean[]>([]);
   const [usernames, setUsernames] = useState<string[]>([]);
@@ -20,8 +20,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<any[][]>([]);
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
+  const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
   const [toastError, setToastError] = useState<string | null>(null);
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId()
+  const config = useConfig()
+  const chain = config.chains.find((c) => c.id === chainId)
+  const { switchChain, } = useSwitchChain()
   const truncateMiddle = (str: string, start = 6, end = 4) => {
     if (str.length <= start + end) return str;
     return `${str.slice(0, start)}...${str.slice(str.length - end)}`;
@@ -50,28 +55,28 @@ export default function Home() {
     setChatInput("");
     // add user message
     setMessages(prev => [...prev, userMsg]);
+    setMessageRoles(prev => [...prev, 'user']);
+    setMessageToolCallIds(prev => [...prev, '']);
     setIsUserMessage(prev => [...prev, true]);
     setUsernames(prev => [...prev, address ? truncateMiddle(address) : 'Anonymous']);
     setDates(prev => [...prev, formatDate(new Date())]);
     setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-    // placeholder for tool calls
+    // placeholder for tool-call suggestions
     setToolCalls(prev => [...prev, []]);
     setRespondedToolCalls(prev => [...prev, []]);
+    setLoadingToolCalls(prev => [...prev, []]);
     setLoading(true);
     try {
       // send full conversation history
-      // Build payload: flatten messages, converting tool call assistant messages into tool roles
-      const payloadMessages = messages.flatMap((m, i) => {
-        if (!isUserMessage[i] && toolCalls[i]?.length > 0) {
-          // emit a tool message for each call, showing function name and arguments
-          return toolCalls[i].map(tc => ({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: `${tc.function?.name || tc.name} ${tc.function?.arguments ?? JSON.stringify(tc.arguments)}`
-          }));
-        }
-        return [{ role: isUserMessage[i] ? 'user' : 'assistant', content: m }];
-      });
+      // build payload using tracked messageRoles and toolCallIds
+      const payloadMessages = messages
+        .map((m, i) => {
+          if (messageRoles[i] === 'tool') {
+            return { role: 'tool', tool_call_id: messageToolCallIds[i], content: m };
+          }
+          return { role: messageRoles[i], content: m };
+        })
+        .filter(msg => msg.content != null);
       // add current user message
       payloadMessages.push({ role: 'user', content: userMsg });
       const res = await fetch('/api/chat', {
@@ -87,6 +92,8 @@ export default function Home() {
       const { content: aiContent, tool_calls } = await res.json();
       // add AI response
       setMessages(prev => [...prev, aiContent]);
+      setMessageRoles(prev => [...prev, 'assistant']);
+      setMessageToolCallIds(prev => [...prev, '']);
       setIsUserMessage(prev => [...prev, false]);
       setUsernames(prev => [...prev, 'ai assistant']);
       setDates(prev => [...prev, formatDate(new Date())]);
@@ -94,6 +101,7 @@ export default function Home() {
       // add tool calls for AI message
       setToolCalls(prev => [...prev, tool_calls || []]);
       setRespondedToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
+      setLoadingToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
     } catch (error) {
       console.error('Error fetching AI response:', error);
       setToastError(error instanceof Error ? error.message : 'Unknown error');
@@ -103,33 +111,112 @@ export default function Home() {
   };
 
   const handleAccept = async (msgIdx: number, callIdx: number) => {
-    setRespondedToolCalls(prev => {
+    // set loading for this tool call
+    setLoadingToolCalls(prev => {
       const arr = prev.map(inner => [...inner]);
       if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
       return arr;
     });
-    const tc = toolCalls[msgIdx]?.[callIdx]; if (!tc) return;
-    if ((tc.function?.name || tc.name) === 'get_weather') {
-      const location = tc.function?.arguments ? JSON.parse(tc.function.arguments).location : tc.arguments?.location;
-      try {
-        const resp = await fetch('/api/get_weather', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ location }),
-        });
-        const data = await resp.json();
-        const aiMsg = `Current temperature in ${data.location} is ${data.temperature}°C.`;
+    const tc = toolCalls[msgIdx]?.[callIdx];
+    if (!tc) {
+      setLoadingToolCalls(prev => {
+        const arr = prev.map(inner => [...inner]);
+        if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
+        return arr;
+      });
+      return;
+    }
+    try {
+      const toolName = tc.function?.name || tc.name;
+      if (toolName === 'switch_chain') {
+        const chainName = tc.function?.arguments
+          ? JSON.parse(tc.function.arguments).chain
+          : tc.arguments?.chain;
+        if (!isConnected) {
+          setToastError('Please connect to a wallet first');
+          return;
+        }
+        switchChain({ chainId: chainName === 'base' ? 8453 : 84532 })
+        const aiMsg = `Switched to ${chainName}.`;
         setMessages(prev => [...prev, aiMsg]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
         setUsernames(prev => [...prev, 'ai assistant']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        // keep arrays aligned
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
-      } catch (err) {
-        console.error(err);
+      } else if (toolName === 'current_chain') {
+  
+        const aiMsg = `Current chain is ${chain?.name} (Chain ID: ${chain?.id})`;
+        setMessages(prev => [...prev, aiMsg]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+      } else if (toolName === 'check_address') {
+        if (!isConnected) {
+          setToastError('Please connect to a wallet first');
+          return;
+        }
+        const aiMsg = address ? `Connected address: ${address}` : 'No address available';
+        setMessages(prev => [...prev, aiMsg]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+        setLoadingToolCalls(prev => [...prev, []]);
+      } else if (toolName === 'check_balance') {
+        if (!isConnected) {
+          setToastError('Please connect to a wallet first');
+          return;
+        }
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const addressParam = args.address;
+        const resp = await fetch('/api/check_balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: addressParam }),
+        });
+        const data = await resp.json();
+        const display = addressParam
+          ? `Token (${addressParam}) balance: ${data.balance}`
+          : `Native balance: ${data.balance}`;
+        setMessages(prev => [...prev, display]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+        setLoadingToolCalls(prev => [...prev, []]);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      // clear loading for this call
+      setLoadingToolCalls(prev => {
+        const arr = prev.map(inner => [...inner]);
+        if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
+        return arr;
+      });
+      // mark responded to hide buttons
+      setRespondedToolCalls(prev => {
+        const arr = prev.map(inner => [...inner]);
+        if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
+        return arr;
+      });
     }
   };
 
@@ -142,6 +229,8 @@ export default function Home() {
     const tc = toolCalls[msgIdx]?.[callIdx]; if (!tc) return;
     const aiMsg = `Tool call ${tc.function?.name || tc.name} was rejected.`;
     setMessages(prev => [...prev, aiMsg]);
+    setMessageRoles(prev => [...prev, 'assistant']);
+    setMessageToolCallIds(prev => [...prev, '']);
     setIsUserMessage(prev => [...prev, false]);
     setUsernames(prev => [...prev, 'ai assistant']);
     setDates(prev => [...prev, formatDate(new Date())]);
@@ -195,10 +284,45 @@ export default function Home() {
                               return 'No arguments';
                             })()}
                           </pre>
-                          {!(respondedToolCalls[idx]?.[tcIdx]) && (
-                            <div className="mt-1 flex space-x-2">
-                              <button onClick={() => handleAccept(idx, tcIdx)} className="btn btn-sm btn-success">Accept</button>
-                              <button onClick={() => handleReject(idx, tcIdx)} className="btn btn-sm btn-error">Reject</button>
+                          {!respondedToolCalls[idx]?.[tcIdx] && (
+                            <div className="mt-1 flex space-x-2 items-center">
+                              {!loadingToolCalls[idx]?.[tcIdx] ? (
+                                <>
+                                  <button
+                                    onClick={() => handleAccept(idx, tcIdx)}
+                                    className="btn btn-sm btn-success"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(idx, tcIdx)}
+                                    className="btn btn-sm btn-error"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <svg
+                                  className="animate-spin h-5 w-5 text-gray-500"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  />
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                  />
+                                </svg>
+                              )}
                             </div>
                           )}
                         </div>
