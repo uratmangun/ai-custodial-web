@@ -70,6 +70,23 @@ export async function POST(request: Request) {
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "get_coin_top_gainers",
+          description: "Get the top gaining coins on zora coins. Optional pagination parameter next_page.",
+          parameters: {
+            type: "object",
+            properties: {
+              next_page: {
+                type: "string",
+                description: "Optional pagination token for the next page.",
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
     ];
     const systemMessage = {
       role: "system",
@@ -79,8 +96,9 @@ Available tool calls:
   - current_chain: Get the current active blockchain chain.
   - check_address: Get the connected wallet address.
   - check_balance: Get the balance of the connected wallet or specified token.
+  - get_coin_top_gainers: Get the top gaining coins on Base networks. Optional pagination parameter next_page.
 
-If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance"`,
+If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({

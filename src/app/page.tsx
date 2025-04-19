@@ -4,7 +4,9 @@ import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
 import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
-
+import { formatEther } from 'viem'
+import { getPublicClient } from 'wagmi/actions'
+import { getCoinsTopGainers } from "@zoralabs/coins-sdk";
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,12 +28,17 @@ export default function Home() {
   const chainId = useChainId()
   const config = useConfig()
   const chain = config.chains.find((c) => c.id === chainId)
-  const { switchChain, } = useSwitchChain()
+  const publicClient = getPublicClient(config, { chainId })
+  const { switchChain } = useSwitchChain()
   const truncateMiddle = (str: string, start = 6, end = 4) => {
     if (str.length <= start + end) return str;
     return `${str.slice(0, start)}...${str.slice(str.length - end)}`;
   };
-
+  async function getBalance(address: `0x${string}`) {
+    if (!publicClient) return null;
+    const balance = await publicClient.getBalance({ address })
+    return formatEther(balance)
+  }
   const formatDate = (date: Date): string => {
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -181,17 +188,36 @@ export default function Home() {
           return;
         }
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const addressParam = args.address;
-        const resp = await fetch('/api/check_balance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: addressParam }),
-        });
-        const data = await resp.json();
+        const addressParam = args.address || address;
+        const balance = await getBalance(addressParam);
         const display = addressParam
-          ? `Token (${addressParam}) balance: ${data.balance}`
-          : `Native balance: ${data.balance}`;
+          ? `Balance for ${addressParam === address ? 'your wallet' : addressParam}: ${balance} ETH`
+          : 'No address available';
         setMessages(prev => [...prev, display]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'ai assistant']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+        setLoadingToolCalls(prev => [...prev, []]);
+      } else if (toolName === 'get_coin_top_gainers') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const nextPage = args.next_page;
+        let data;
+        try {
+          data = await getCoinsTopGainers({  count: 10,        // Optional: number of coins per page
+            after: nextPage,  });
+        } catch (error) {
+          setToastError(error instanceof Error ? error.message : 'Error fetching top gainers');
+          return;
+        }
+        const coins = data.coins || [];
+        const formatted = coins.map((c: any) => `${c.name} (${c.symbol}): ${c.priceChange}%`).join(', ');
+        const aiMsg = `Top gaining coins: ${formatted}${data.nextPage ? ' Next page: ' + data.nextPage : ''}`;
+        setMessages(prev => [...prev, aiMsg]);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
