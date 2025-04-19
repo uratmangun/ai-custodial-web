@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "bot attack",
-  description: "block attack",
+  title: "AI custodial wallet",
+  description: "AI custodial wallet",
 };
 
 export default function RootLayout({
