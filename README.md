@@ -3,7 +3,7 @@
 An AI-powered chat interface built with Next.js that lets you query and interact with the Base and Base Sepolia blockchains. It leverages the Zora Coins SDK to fetch on-chain data (balances, top gainers, coin details, and comments) and defines tool functions (switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment). Responses are formatted with human-readable ETH units, markdown previews, and paginated comments with user handles and timestamps. The application runs in Docker using pnpm and is publicly accessible via a Cloudflare Tunnel.
 
 # Web demo
-https://instant-grid-removing-accessible.trycloudflare.com/
+https://especially-instructor-phone-rob.trycloudflare.com 
 
 # Video demo
 https://youtu.be/XgQppscv380
