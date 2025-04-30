@@ -7,6 +7,12 @@ import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem'
 import { getPublicClient } from 'wagmi/actions'
 import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,10 +32,14 @@ export default function Home() {
   const [toastError, setToastError] = useState<string | null>(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId()
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const config = useConfig()
   const chain = config.chains.find((c) => c.id === chainId)
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
   const truncateMiddle = (str: string, start = 6, end = 4) => {
     if (str.length <= start + end) return str;
     return `${str.slice(0, start)}...${str.slice(str.length - end)}`;
@@ -44,16 +54,6 @@ export default function Home() {
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
     const y = date.getFullYear();
     return `${d}/${m}/${y}`;
-  };
-
-  const openModal = (row: number, col: number) => {
-    setSelectedSquare({ row, col });
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    setSelectedSquare(null);
   };
 
   const handleSend = async () => {
@@ -421,180 +421,167 @@ export default function Home() {
     setRespondedToolCalls(prev => [...prev, []]);
   };
 
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start p-4">
-      {toastError && (
-        <div className="toast toast-top toast-end fixed z-50">
-          <div className="alert alert-error">
-            <span>{toastError}</span>
-            <button className="btn btn-sm btn-circle ml-2" onClick={() => setToastError(null)}>×</button>
-          </div>
-        </div>
-      )}
-      <h1 className="text-3xl font-bold mb-6">AI custodial wallet</h1>
-      <div className="mb-6">
-        <ConnectButton />
-      </div>
-      <div className="w-full max-w-full mb-6">
-        <div className="border border-base-content/20 rounded p-4 h-[80vh] overflow-y-auto bg-white w-full">
-          {messages.length === 0 ? (
-            <p className="text-gray-500 text-sm">No messages yet.</p>
-          ) : (
-            messages.map((msg, idx) => {
-              // Only render tool call UI for assistant messages (left/ai bubble)
-              if (!isUserMessage[idx] && toolCalls[idx] && toolCalls[idx].length > 0) {
-                return (
-                  <div key={idx} className="mb-4 flex justify-start">
-                    <div className="relative rounded-lg px-4 py-2 bg-yellow-100 text-black max-w-[80%]" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                      <span className="absolute -top-4 right-0 text-xs text-black">{usernames[idx]}</span>
-                      <p className="text-sm font-semibold">Tool calls:</p>
-                      {toolCalls[idx].map((tc, tcIdx) => (
-                        <div key={tc.id || tcIdx} className="mb-2">
-                          <div className="font-mono text-xs font-bold">{tc.function?.name || tc.name}</div>
-                          <pre className="text-xs bg-yellow-50 p-1 rounded whitespace-pre-wrap">
-                            {(() => {
-                              if (tc.function?.arguments) {
-                                try { return JSON.stringify(JSON.parse(tc.function.arguments), null, 2); } catch { return tc.function.arguments; }
-                              }
-                              if (tc.arguments) return JSON.stringify(tc.arguments, null, 2);
-                              return 'No arguments';
-                            })()}
-                          </pre>
-                          {!respondedToolCalls[idx]?.[tcIdx] && (
-                            <div className="mt-1 flex space-x-2 items-center">
-                              {!loadingToolCalls[idx]?.[tcIdx] ? (
-                                <>
-                                  <button
-                                    onClick={() => handleAccept(idx, tcIdx)}
-                                    className="btn btn-sm btn-success"
-                                  >
-                                    Accept
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(idx, tcIdx)}
-                                    className="btn btn-sm btn-error"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              ) : (
-                                <svg
-                                  className="animate-spin h-5 w-5 text-gray-500"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                  />
-                                  <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                                  />
-                                </svg>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <span className="absolute -bottom-4 right-0 text-xs text-gray-500">{dates[idx]} {timestamps[idx]}</span>
-                    </div>
-                  </div>
-                );
-              }
-              // Otherwise, render normal chat bubble
-              return (
-                <div key={idx} className={`mb-4 flex ${isUserMessage[idx] ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex flex-col items-end max-w-[80%]`}>
-                    <span className="text-xs mb-1 text-black text-right self-end">{usernames[idx]}</span>
-                    <div className={`rounded-lg px-4 py-2 ${isUserMessage[idx] ? 'bg-black text-white' : 'bg-gray-200 text-black'}`} style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                      {isUserMessage[idx] ? (
-                        <p className="text-sm">{msg}</p>
-                      ) : (
-                        <div className="prose text-sm"><ReactMarkdown>{msg}</ReactMarkdown></div>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-500">{dates[idx]} {timestamps[idx]}</span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={chatEndRef} />
-        </div>
-        <div className="flex mt-2">
-          <input
-            type="text"
-            className="flex-grow input input-bordered"
-            placeholder="Type a message..."
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
-            disabled={loading}
-          />
-          <button className="btn btn-primary ml-2" onClick={handleSend} disabled={loading}>
-            {loading ? (
-              <svg
-                className="animate-spin h-5 w-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            ) : (
-              'Send'
-            )}
-          </button>
-        </div>
-      </div>
-      {/* Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/5 backdrop-blur-[2px] z-50">
-          <div className="bg-white rounded-xl shadow-lg p-8 pt-4 min-w-[900px] min-h-[700px] text-center relative text-black border-2 border-black/10 flex flex-col">
-            {/* Modal Header */}
-            <div className="flex justify-between items-start w-full mb-4">
-              {/* Spacer to help center title/button */}
-              <div className="w-8"></div> 
-              <div className="flex flex-col items-center flex-grow">
-                <h2 className="mb-2 text-3xl font-semibold">Battle</h2>
-                <button className="btn btn-accent mb-2 text-lg" onClick={() => router.push('/generate-bot')}>
-                  Generate Bot
-                </button>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted">
+       {toastError && (
+         <div className="fixed top-4 right-4 z-50 max-w-md">
+           <div className="bg-destructive text-destructive-foreground p-4 rounded-lg shadow-lg flex items-center">
+             <span className="flex-1">{toastError}</span>
+             <button className="ml-4 text-destructive-foreground" onClick={() => setToastError(null)}>×</button>
+           </div>
+         </div>
+       )}
+      <Card className="w-full max-w-3xl h-[80vh] flex flex-col mx-auto my-auto">
+        <CardHeader className="flex flex-row items-center justify-between p-4 border-b">
+          <CardTitle>AI Custodial Chat (Base Sepolia)</CardTitle>
+          <ConnectButton />
+        </CardHeader>
+        <CardContent className="flex-grow p-0 overflow-hidden">
+          <ScrollArea className="h-full w-full p-4">
+            {messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Start chatting...
               </div>
-              <button
-                className="text-2xl font-bold text-black hover:text-gray-700"
-                onClick={closeModal}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
+            ) : (
+              messages.map((msg, idx) => {
+                const role = messageRoles[idx];
+                const isUser = role === 'user';
+                const isTool = role === 'tool';
+                const isAssistant = role === 'assistant';
+                const calls = toolCalls[idx] || [];
 
-            {/* Modal Body */} 
-            <div className="flex-grow flex flex-col items-center justify-center">
-              <p className="text-lg">Row: {selectedSquare?.row}, Col: {selectedSquare?.col}</p>
-              <p className="mb-2 text-lg">list bot</p>
-
-              <button className="btn btn-primary btn-lg mt-auto" onClick={closeModal}>
-                Close
-              </button>
-            </div>
+                if (isAssistant) {
+                  // Render Assistant message with potential tool calls
+                  return (
+                    <div key={idx} className={`mb-4 flex items-start gap-3 justify-start`}>
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>AI</AvatarFallback>
+                      </Avatar>
+                       <div className={`flex flex-col max-w-[75%] items-start`}>
+                         <span className="text-xs text-muted-foreground mb-1">Assistant</span>
+                         {/* Only render the message bubble if msg exists */}
+                         {msg && (
+                           <div className={`rounded-lg px-3 py-2 bg-muted relative`}>
+                             <div className="prose prose-sm max-w-none text-sm dark:prose-invert"><ReactMarkdown>{msg}</ReactMarkdown></div>
+                             <div className="mt-2">
+                               <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
+                             </div>
+                           </div>
+                         )}
+                         {calls.length > 0 && (
+                           <div className="mt-2 space-y-2 w-full">
+                             {calls.map((call: any, callIdx: number) => (
+                               <Card key={callIdx} className={`bg-background border rounded-md p-3 ${respondedToolCalls[idx]?.[callIdx] ? 'opacity-50' : ''}`}>
+                                 <p className="text-xs font-semibold mb-1">Tool Call: <code className="text-xs bg-secondary px-1 rounded">{call.function.name}</code></p>
+                                 <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                                   {JSON.stringify(JSON.parse(call.function.arguments), null, 2)}
+                                 </pre>
+                                 {!respondedToolCalls[idx]?.[callIdx] && (
+                                   <div className="mt-2 flex gap-2 justify-end">
+                                     <Button
+                                       size="sm"
+                                       variant="outline"
+                                       onClick={() => handleReject(idx, callIdx)}
+                                       disabled={loadingToolCalls[idx]?.[callIdx]}
+                                     >
+                                       Reject
+                                     </Button>
+                                     <Button
+                                       size="sm"
+                                       onClick={() => handleAccept(idx, callIdx)}
+                                       disabled={loadingToolCalls[idx]?.[callIdx]}
+                                     >
+                                       {loadingToolCalls[idx]?.[callIdx] ? 'Processing...' : 'Accept'}
+                                     </Button>
+                                   </div>
+                                 )}
+                               </Card>
+                             ))}
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   );
+                } else if (isTool) {
+                  // Render Tool Result message
+                  return (
+                    <div key={idx} className={`mb-4 flex items-start gap-3 justify-start`}>
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>AI</AvatarFallback>
+                      </Avatar>
+                      <div className={`flex flex-col max-w-[75%] items-start`}>
+                        <span className="text-xs text-muted-foreground mb-1">Tool Result</span>
+                        <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm">
+                          <p className="text-xs font-semibold mb-1">({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})</p>
+                          <pre className="whitespace-pre-wrap break-all text-xs">{msg}</pre>
+                          <div className="mt-2">
+                            <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else if (isUser) {
+                   // Render User message
+                  return (
+                    <div key={idx} className={`mb-4 flex items-start gap-3 justify-end`}>
+                      <div className={`flex flex-col max-w-[75%] items-end`}>
+                        <span className="text-xs text-muted-foreground mb-1">{usernames[idx]}</span>
+                        <div className={`rounded-lg px-3 py-2 bg-primary text-primary-foreground`}>
+                          <p className="text-sm">{msg}</p>
+                          <div className="mt-2">
+                            <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{usernames[idx]?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  );
+                } else {
+                  // Fallback or handle other roles if any
+                  return null;
+                }
+              })
+            )}
+            <div ref={chatEndRef} />
+          </ScrollArea>
+        </CardContent>
+        <CardFooter className="p-4 border-t">
+          <div className="flex w-full items-center space-x-2">
+            <Input
+              id="message"
+              placeholder="Type your message..."
+              className="flex-1"
+              autoComplete="off"
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={loading}
+            />
+            <Button onClick={handleSend} disabled={loading || !chatInput.trim()}>
+              {loading ? (
+                <svg
+                  className="animate-spin h-4 w-4 mr-2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+              ) : null}
+              Send
+            </Button>
           </div>
-        </div>
-      )}
+        </CardFooter>
+      </Card>
     </main>
   );
 }
