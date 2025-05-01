@@ -3,7 +3,7 @@ import React from 'react'
 import { Toaster } from 'sonner'
 
 export const metadata: Metadata = {
-  title: 'Chat (Base Sepolia)',
+  title: 'Chat',
 }
 
 export default function BaseSepoliaChatLayout({

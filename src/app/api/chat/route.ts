@@ -11,15 +11,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "modelName is required in the request body" }, { status: 400 });
     }
 
-    const aiModels = {
+    const availableModels = {
       "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free": {
         baseUrl: "https://api.together.xyz/v1",
         apiKey: process.env.TOGETHER_API_KEY
+      },
+      "mistralai/mistral-small-3.1-24b-instruct:free": {
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY
+      },
+      "learnlm-2.0-flash-experimental": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "learnlm-1.5-pro-experimental": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-1.5-flash-8b": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-1.5-flash": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-1.5-pro": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-2.0-flash-lite": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-2.0-flash": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-2.5-flash-preview-04-17": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
+      },
+      "gemini-2.5-pro-preview-03-25": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        apiKey: process.env.GEMINI_API_KEY
       }
     };
 
-    // Select the configuration based on the requested model name
-    const selectedModelConfig = aiModels[requestedModelName as keyof typeof aiModels];
+    // Create an OpenAI API client (that's compatible with the Vercel AI SDK)
+    const selectedModelConfig = availableModels[requestedModelName as keyof typeof availableModels];
 
     // Validate if the requested model configuration exists
     if (!selectedModelConfig) {

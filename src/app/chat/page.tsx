@@ -446,6 +446,56 @@ export default function Home() {
       label: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
       badge: "together.xyz",
     },
+    {
+      value: "mistralai/mistral-small-3.1-24b-instruct:free",
+      label: "mistralai/mistral-small-3.1-24b-instruct:free",
+      badge: "openrouter.ai",
+    },
+    {
+      value: "learnlm-2.0-flash-experimental",
+      label: "learnlm-2.0-flash-experimental",
+      badge: "gemini",
+    },
+    {
+      value: "learnlm-1.5-pro-experimental",
+      label: "learnlm-1.5-pro-experimental",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-1.5-flash-8b",
+      label: "gemini-1.5-flash-8b",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-1.5-flash",
+      label: "gemini-1.5-flash",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-1.5-pro",
+      label: "gemini-1.5-pro",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-2.0-flash-lite",
+      label: "gemini-2.0-flash-lite",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-2.0-flash",
+      label: "gemini-2.0-flash",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-2.5-flash-preview-04-17",
+      label: "gemini-2.5-flash-preview-04-17",
+      badge: "gemini",
+    },
+    {
+      value: "gemini-2.5-pro-preview-03-25",
+      label: "gemini-2.5-pro-preview-03-25",
+      badge: "gemini",
+    }
   ];
 
   return (
@@ -461,7 +511,7 @@ export default function Home() {
       <Card className="w-full max-w-3xl h-[80vh] flex flex-col mx-auto my-auto">
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
-            <CardTitle>AI Custodial Chat (Base Sepolia)</CardTitle>
+            <CardTitle>AI Custodial Chat</CardTitle>
             <ConnectButton />
           </div>
           <div className="flex justify-end w-full mt-2">

@@ -32,7 +32,7 @@ export default function Home() {
  
 
   return (
-    <main className="flex min-h-screen flex-col justify-start bg-background">
+    <main className="flex h-screen w-full flex-col justify-start bg-background">
       {toastError && (
         <div className="fixed top-4 right-4 z-50 max-w-md">
           <div className="bg-destructive text-destructive-foreground p-4 rounded-lg shadow-lg flex items-center">
@@ -41,27 +41,27 @@ export default function Home() {
           </div>
         </div>
       )}
-      <section className="relative w-full overflow-hidden py-20 lg:py-36 bg-gradient-to-r from-primary to-primary/70">
+      <section className="relative flex-grow w-full overflow-hidden py-20 lg:py-36 bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 via-blue-400 to-purple-400">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.8 }}
-          className="relative z-10 px-6 mx-auto max-w-7xl text-center text-white"
+          className="relative z-10 px-6 mx-auto max-w-7xl text-center"
         >
-          <p className="text-sm uppercase opacity-75 mb-3">Welcome to</p>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+          <p className="text-sm uppercase text-gray-700 opacity-75 mb-3">Welcome to</p>
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900">
             AI Custodial Wallet & AI Zora Coin Trade Simulator
           </h1>
-          <p className="text-lg sm:text-xl lg:text-2xl text-white/90 max-w-3xl mx-auto mt-4">
+          <p className="text-lg sm:text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto mt-4">
             Experience the future of blockchain trading with our AI-powered platform. Simulate trades, manage assets, and explore the Zora coin ecosystem with ease.
           </p>
           <div className="flex flex-col gap-4 mt-8 items-center">
             <div className="flex flex-row gap-4">
               <Button variant="default" size="lg" asChild>
-                <Link href="/chat/base-sepolia">Chat (only on base sepolia for now)</Link>
+                <Link href="/chat">Chat </Link>
               </Button>
               <Button variant="default" size="lg" asChild>
-                <Link href="/simulation">Simulate with AI</Link>
+                <Link href="/simulation">Simulate trading with AI</Link>
               </Button>
               <Button variant="default" size="lg" asChild>
                 <Link href="/balance">Token Balance</Link>
