@@ -3,73 +3,110 @@ import React from "react";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 
-interface Balance {
-  token: string;
+interface RawBalanceItem {
+  block_num: number;
+  datetime: string;
+  contract: string;
+  amount: string;
+  value: number;
+  decimals: number;
   symbol: string;
-  balance: string;
-  value: string;
+  network_id: string;
 }
 
 interface BalanceTableProps {
-  balances: Balance[];
-  title?: string;
+  balances: RawBalanceItem[] | null;
 }
 
-const BalanceTable: React.FC<BalanceTableProps> = ({ balances, title = "Your Balances" }) => {
-  return (
-    <Card className="w-full max-w-2xl shadow-md"> 
-      <CardHeader>
-        <CardTitle className="text-slate-800">{title}</CardTitle> 
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-slate-700">Token</TableHead> 
-                <TableHead className="text-slate-700">Symbol</TableHead> 
-                <TableHead className="text-slate-700">Balance</TableHead> 
-                <TableHead className="text-right text-slate-700">Value (USD)</TableHead> 
-                <TableHead className="text-center text-slate-700">Action</TableHead> 
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {balances.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-slate-500">
-                    No balances found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                balances.map((balance) => (
-                  <TableRow key={balance.symbol}>
-                    <TableCell className="font-medium text-slate-900">{balance.token}</TableCell> 
-                    <TableCell className="text-slate-600">{balance.symbol}</TableCell> 
-                    <TableCell className="text-slate-600">{balance.balance}</TableCell> 
-                    <TableCell className="text-right text-slate-600">{balance.value}</TableCell> 
-                    <TableCell className="text-center">
-                      <div className="flex justify-center gap-2">
-                        <Button variant="outline" size="sm">Bridge</Button>
-                        <Button variant="outline" size="sm">Swap</Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+export function BalanceTable({ balances }: BalanceTableProps) {
+  // Helper to format balance
+  const formatDisplayBalance = (amount: string, decimals: number): string => {
+    try {
+      const divisor = Math.pow(10, decimals);
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount)) return "Invalid Amount";
+      return (numericAmount / divisor).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      });
+    } catch (e) {
+      console.error("Error formatting balance:", e);
+      return "Error";
+    }
+  };
 
-export default BalanceTable;
+  // Helper to format timestamp
+  const formatTimestamp = (datetime: string): string => {
+    try {
+      return new Date(datetime).toLocaleString();
+    } catch (e) {
+      return datetime;
+    }
+  };
+
+  // Helper to shorten contract address
+  const shortenAddress = (address: string): string => {
+    if (!address || address.length < 10) return address;
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  };
+
+  return (
+    <Table>
+      <TableCaption>A list of your recent token balances.</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[100px]">Token</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+          <TableHead className="text-right">Balance</TableHead>
+          <TableHead className="text-right">Decimals</TableHead>
+          <TableHead className="text-right">Block #</TableHead>
+          <TableHead>Timestamp</TableHead>
+          <TableHead>Contract</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {balances && balances.length > 0 ? (
+          balances.map((item, index) => (
+            <TableRow key={`${item.contract}-${index}`}>
+              <TableCell className="font-medium">{item.symbol}</TableCell>
+              <TableCell className="text-right font-mono text-xs">{item.amount}</TableCell>
+              <TableCell className="text-right">
+                {formatDisplayBalance(item.amount, item.decimals)}
+              </TableCell>
+              <TableCell className="text-right">{item.decimals}</TableCell>
+              <TableCell className="text-right">{item.block_num}</TableCell>
+              <TableCell>{formatTimestamp(item.datetime)}</TableCell>
+              <TableCell title={item.contract}>
+                {shortenAddress(item.contract)}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  {/* Removed View Tx button */}
+                  {/* Re-added Swap/Bridge Buttons (placeholders) */}
+                  <Button variant="outline" size="sm">Bridge</Button>
+                  <Button variant="outline" size="sm">Swap</Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={8} className="h-24 text-center">
+              No results.
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
+  );
+}
