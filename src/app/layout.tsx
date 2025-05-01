@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Web3Provider } from "./providers";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +30,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Web3Provider>
+          <Toaster 
+            closeButton={true}
+            richColors={true}
+            duration={5000}
+            position="top-right"
+          />
           {children}
         </Web3Provider>
       </body>

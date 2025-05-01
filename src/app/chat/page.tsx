@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -28,6 +30,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 
 export default function Home() {
   const router = useRouter();
@@ -36,6 +39,7 @@ export default function Home() {
   const [messages, setMessages] = useState<string[]>([]);
   const [messageRoles, setMessageRoles] = useState<('user'|'assistant'|'tool')[]>([]);
   const [messageToolCallIds, setMessageToolCallIds] = useState<string[]>([]);
+  const [messageStructuredData, setMessageStructuredData] = useState<(any | null)[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isUserMessage, setIsUserMessage] = useState<boolean[]>([]);
   const [usernames, setUsernames] = useState<string[]>([]);
@@ -45,7 +49,7 @@ export default function Home() {
   const [toolCalls, setToolCalls] = useState<any[][]>([]);
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
-  const [toastError, setToastError] = useState<string | null>(null);
+  const [paginationLoadingIdx, setPaginationLoadingIdx] = useState<number | null>(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId()
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -74,11 +78,62 @@ export default function Home() {
     return `${d}/${m}/${y}`;
   };
 
+  interface StructuredMessageData {
+    type: string;
+    data: any[];
+    pageCursors: (string | null | undefined)[];
+    currentPage: number;
+    startIndex: number;
+  }
+
+  const handlePageChange = async (messageIndex: number, direction: 'next' | 'prev') => {
+    const sd = messageStructuredData[messageIndex];
+    if (!sd || sd.type !== 'get_coin_top_gainers') return;
+    const perPage = 10;
+    let targetCursor: string | null | undefined;
+    let newPage = sd.currentPage;
+    if (direction === 'next') {
+      targetCursor = sd.pageCursors[sd.currentPage];
+      if (!targetCursor) return;
+      newPage++;
+    } else {
+      if (sd.currentPage <= 1) return;
+      targetCursor = sd.pageCursors[sd.currentPage - 2];
+      newPage--;
+    }
+    setPaginationLoadingIdx(messageIndex);
+    const toastId = toast.loading(`Loading page ${newPage}...`);
+    try {
+      const response = await getCoinsTopGainers({ 
+        count: 10,        // Number of coins per page
+        after: targetCursor 
+      });
+      const newCoins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
+      const newCursor = response.data?.exploreList?.pageInfo?.endCursor;
+      setMessageStructuredData(prev => {
+        const arr = [...prev];
+        const entry = arr[messageIndex];
+        if (entry && entry.type === 'get_coin_top_gainers') {
+          if (direction === 'next') entry.pageCursors = [...entry.pageCursors, newCursor];
+          entry.data = newCoins;
+          entry.currentPage = newPage;
+          entry.startIndex = (newPage - 1) * perPage;
+        }
+        arr[messageIndex] = entry;
+        return arr;
+      });
+      toast.success(`Page ${newPage} loaded.`, { id: toastId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error fetching page', { id: toastId });
+    } finally {
+      setPaginationLoadingIdx(null);
+    }
+  };
+
   const handleSend = async () => {
     if (!chatInput.trim()) return;
     const userMsg = chatInput.trim();
     setChatInput("");
-    // add user message
     setMessages(prev => [...prev, userMsg]);
     setMessageRoles(prev => [...prev, 'user']);
     setMessageToolCallIds(prev => [...prev, '']);
@@ -86,14 +141,12 @@ export default function Home() {
     setUsernames(prev => [...prev, address ? truncateMiddle(address) : 'Anonymous']);
     setDates(prev => [...prev, formatDate(new Date())]);
     setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-    // placeholder for tool-call suggestions
     setToolCalls(prev => [...prev, []]);
     setRespondedToolCalls(prev => [...prev, []]);
-    setLoadingToolCalls(prev => [...prev, []]);
+    setMessageStructuredData(prev => [...prev, null]); 
+
     setLoading(true);
     try {
-      // send full conversation history
-      // build payload using tracked messageRoles and toolCallIds
       const payloadMessages = messages
         .map((m, i) => {
           if (messageRoles[i] === 'tool') {
@@ -102,7 +155,6 @@ export default function Home() {
           return { role: messageRoles[i], content: m };
         })
         .filter(msg => msg.content != null);
-      // add current user message
       payloadMessages.push({ role: 'user', content: userMsg });
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -111,46 +163,50 @@ export default function Home() {
       });
       if (!res.ok) {
         const errJson = await res.json();
-        setToastError(errJson.error || 'Server error');
+        toast.error(errJson.error || 'Server error');
         return;
       }
       const { content: aiContent, tool_calls } = await res.json();
-      // add AI response
       setMessages(prev => [...prev, aiContent]);
       setMessageRoles(prev => [...prev, 'assistant']);
-      setMessageToolCallIds(prev => [...prev, '']);
+      setMessageToolCallIds(prev => [...prev, message.tool_call_id || '']);
       setIsUserMessage(prev => [...prev, false]);
-      setUsernames(prev => [...prev, 'ai assistant']);
+      setUsernames(prev => [...prev, 'AI']);
       setDates(prev => [...prev, formatDate(new Date())]);
       setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-      // add tool calls for AI message
       setToolCalls(prev => [...prev, tool_calls || []]);
       setRespondedToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
       setLoadingToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
+      setMessageStructuredData(prev => [...prev, null]); 
     } catch (error) {
       console.error('Error fetching AI response:', error);
-      setToastError(error instanceof Error ? error.message : 'Unknown error');
+      toast.error(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleAccept = async (msgIdx: number, callIdx: number) => {
-    // set loading for this tool call
     setLoadingToolCalls(prev => {
-      const arr = prev.map(inner => [...inner]);
-      if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
-      return arr;
+      const copy = [...prev];
+      if (!copy[msgIdx]) copy[msgIdx] = [];
+      while (copy[msgIdx].length <= callIdx) {
+        copy[msgIdx].push(false);
+      }
+      copy[msgIdx][callIdx] = true;
+      return copy;
     });
+
     const tc = toolCalls[msgIdx]?.[callIdx];
     if (!tc) {
       setLoadingToolCalls(prev => {
-        const arr = prev.map(inner => [...inner]);
-        if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
-        return arr;
+        const copy = [...prev];
+        if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
+        return copy;
       });
       return;
     }
+    
     try {
       const toolName = tc.function?.name || tc.name;
       if (toolName === 'switch_chain') {
@@ -158,7 +214,7 @@ export default function Home() {
           ? JSON.parse(tc.function.arguments).chain
           : tc.arguments?.chain;
         if (!isConnected) {
-          setToastError('Please connect to a wallet first');
+          toast.error('Please connect to a wallet first');
           return;
         }
         switchChain({ chainId: chainName === 'base' ? 8453 : 84532 })
@@ -167,11 +223,12 @@ export default function Home() {
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, null]); 
       } else if (toolName === 'current_chain') {
   
         const aiMsg = `Current chain is ${chain?.name} (Chain ID: ${chain?.id})`;
@@ -179,14 +236,15 @@ export default function Home() {
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, null]); 
       } else if (toolName === 'check_address') {
         if (!isConnected) {
-          setToastError('Please connect to a wallet first');
+          toast.error('Please connect to a wallet first');
           return;
         }
         const aiMsg = address ? `Connected address: ${address}` : 'No address available';
@@ -194,15 +252,16 @@ export default function Home() {
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, null]); 
         setLoadingToolCalls(prev => [...prev, []]);
       } else if (toolName === 'check_balance') {
         if (!isConnected) {
-          setToastError('Please connect to a wallet first');
+          toast.error('Please connect to a wallet first');
           return;
         }
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
@@ -210,9 +269,9 @@ export default function Home() {
         const nextPage = args.next_page;
         const balance = await getBalance(addressParam);
         const response = await getProfileBalances({
-          identifier: addressParam, // Can also be zora user profile handle
-          count: 20,        // Optional: number of balances per page
-          after: nextPage, // Optional: for pagination
+          identifier: addressParam, 
+          count: 20,        
+          after: nextPage, 
         });
        
         const profile: any = response.data?.profile;
@@ -243,60 +302,59 @@ export default function Home() {
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, null]); 
         setLoadingToolCalls(prev => [...prev, []]);
       } else if (toolName === 'get_coin_top_gainers') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const nextPage = args.next_page;
         if (chainId!==8453) {
-          setToastError('Please switch to base first');
+          toast.error('Please switch to base first');
           return;
         }
         let response;
         try {
-          response = await getCoinsTopGainers({  count: 10,        // Optional: number of coins per page
-            after: nextPage,  });
+          response = await getCoinsTopGainers({ 
+            count: 10,        // Number of coins per page
+            after: nextPage 
+          });
         } catch (error) {
-          setToastError(error instanceof Error ? error.message : 'Error fetching top gainers');
+          toast.error(error instanceof Error ? error.message : 'Error fetching top gainers');
           return;
         }
-        const coins = response.data?.exploreList?.edges?.map((edge: any) => edge.node) || [];
-        const aiMsgLines: string[] = [];
-        aiMsgLines.push(`Top Gainers (${coins.length} coins):`);
-        coins.forEach((coin: any, index: number) => {
-          const percentChange = coin.priceChange
-            ? `${parseFloat(coin.priceChange).toFixed(2)}%`
-            : "N/A";
-          aiMsgLines.push(`${index + 1}. ${coin.name} (${coin.symbol})`);
-          aiMsgLines.push(`   24h Change: ${percentChange}`);
-          aiMsgLines.push(`   Market Cap: ${coin.marketCap ?? 'N/A'}`);
-          aiMsgLines.push(`   Volume 24h: ${coin.volume24h ?? 'N/A'}`);
-          aiMsgLines.push(`   Token address: ${coin.address}`);
-          aiMsgLines.push(`   Owner address: ${coin.creatorAddress}`);
-          aiMsgLines.push('-----------------------------------');
-        });
+        const coins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
         const nextPageCursor = response.data?.exploreList?.pageInfo?.endCursor;
-        if (nextPageCursor) {
-          aiMsgLines.push(`Next page cursor: ${nextPageCursor}`);
-        }
-        const aiMsg = aiMsgLines.join(`\n`);
-        setMessages(prev => [...prev, aiMsg]);
+
+        setMessageStructuredData(prev => [
+          ...prev,
+          {
+            type: 'get_coin_top_gainers',
+            data: coins,
+            pageCursors: [undefined, nextPageCursor],
+            currentPage: 1,
+            startIndex: 0
+          }
+        ]);
+
+        setMessages(prev => [...prev, '']);
         setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setMessageToolCallIds(prev => [...prev, tc.id || '']);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, []]);
-        setRespondedToolCalls(prev => [...prev, []]);
+        setToolCalls(prev => [...prev, [tc]]);
+        setRespondedToolCalls(prev => [...prev, [false]]);
+        setLoadingToolCalls(prev => [...prev, [false]]);
       } else if (toolName === 'check_coin') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const coinAddress = args.address;
         const chain = args.chainId || 'base';
+        const nextPage = args.next_page;
         const chainIdDisplay = chain === 'base' ? 8453 : 84532;
         let response;
         try {
@@ -305,7 +363,7 @@ export default function Home() {
             chain: chainIdDisplay,
           });
         } catch (err) {
-          setToastError('Failed to fetch coin details');
+          toast.error('Failed to fetch coin details');
           setLoadingToolCalls(prev => {
             const arr = prev.map(inner => [...inner]);
             if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
@@ -319,6 +377,15 @@ export default function Home() {
        
         if (!coin) {
           setMessages(prev => [...prev, `Coin not found for address: ${coinAddress}`]);
+          setMessageRoles(prev => [...prev, 'assistant']);
+          setMessageToolCallIds(prev => [...prev, '']);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, null]); 
         } else {
           const lines: string[] = [];
           lines.push(`Coin: ${coin.name} (${coin.symbol})`);
@@ -335,15 +402,16 @@ export default function Home() {
             lines.push(`![Preview Image](${coin.mediaContent.previewImage.small})`);
           }
           setMessages(prev => [...prev, lines.join('\n')]);
+          setMessageRoles(prev => [...prev, 'assistant']);
+          setMessageToolCallIds(prev => [...prev, '']);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, null]); 
         }
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
-        setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
-        setDates(prev => [...prev, formatDate(new Date())]);
-        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, []]);
-        setRespondedToolCalls(prev => [...prev, []]);
         setLoadingToolCalls(prev => [...prev, []]);
         return;
       } else if (toolName === 'get_coin_comment') {
@@ -359,7 +427,7 @@ export default function Home() {
             after: nextPage,
           });
         } catch (err) {
-          setToastError('Failed to fetch coin comments');
+          toast.error('Failed to fetch coin comments');
           setLoadingToolCalls(prev => {
             const arr = prev.map(inner => [...inner]);
             if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
@@ -373,7 +441,6 @@ export default function Home() {
         lines.push(`Comments for coin ${coinAddress} (${chain}):`);
         comments.forEach((item: any, idx: number) => {
           const comment = item.node;
-          // Assume comment.timestamp is either seconds or ISO string
           let readableDate = '';
           if (typeof comment.timestamp === 'number') {
             readableDate = new Date(comment.timestamp * 1000).toLocaleString();
@@ -390,27 +457,27 @@ export default function Home() {
           lines.push(`Next page cursor: ${pageInfo.endCursor}`);
         }
         setMessages(prev => [...prev, lines.join('\n')]);
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setMessageRoles(prev => [...prev, 'assistant']);
+        setMessageToolCallIds(prev => [...prev, '']);
         setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'ai assistant']);
+        setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, null]); 
         setLoadingToolCalls(prev => [...prev, []]);
         return;
       }
     } catch (err) {
       console.error(err);
     } finally {
-      // clear loading for this call
       setLoadingToolCalls(prev => {
-        const arr = prev.map(inner => [...inner]);
-        if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
-        return arr;
+        const copy = [...prev];
+        if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
+        return copy;
       });
-      // mark responded to hide buttons
+      
       setRespondedToolCalls(prev => {
         const arr = prev.map(inner => [...inner]);
         if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
@@ -420,26 +487,53 @@ export default function Home() {
   };
 
   const handleReject = (msgIdx: number, callIdx: number) => {
-    setRespondedToolCalls(prev => {
-      const arr = prev.map(inner => [...inner]);
-      if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
-      return arr;
+    setLoadingToolCalls(prev => {
+      const copy = [...prev];
+      if (!copy[msgIdx]) copy[msgIdx] = [];
+      while (copy[msgIdx].length <= callIdx) {
+        copy[msgIdx].push(false);
+      }
+      copy[msgIdx][callIdx] = true;
+      return copy;
     });
-    const tc = toolCalls[msgIdx]?.[callIdx]; if (!tc) return;
-    const aiMsg = `Tool call ${tc.function?.name || tc.name} was rejected.`;
-    setMessages(prev => [...prev, aiMsg]);
-    setMessageRoles(prev => [...prev, 'assistant']);
-    setMessageToolCallIds(prev => [...prev, '']);
-    setIsUserMessage(prev => [...prev, false]);
-    setUsernames(prev => [...prev, 'ai assistant']);
-    setDates(prev => [...prev, formatDate(new Date())]);
-    setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-    // keep arrays aligned
-    setToolCalls(prev => [...prev, []]);
-    setRespondedToolCalls(prev => [...prev, []]);
+    
+    const tc = toolCalls[msgIdx]?.[callIdx]; 
+    if (!tc) {
+      setLoadingToolCalls(prev => {
+        const copy = [...prev];
+        if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
+        return copy;
+      });
+      return;
+    }
+    
+    setTimeout(() => {
+      const aiMsg = `Tool call ${tc.function?.name || tc.name} was rejected.`;
+      setMessages(prev => [...prev, aiMsg]);
+      setMessageRoles(prev => [...prev, 'assistant']);
+      setMessageToolCallIds(prev => [...prev, '']);
+      setIsUserMessage(prev => [...prev, false]);
+      setUsernames(prev => [...prev, 'AI']);
+      setDates(prev => [...prev, formatDate(new Date())]);
+      setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+      setToolCalls(prev => [...prev, []]);
+      setRespondedToolCalls(prev => [...prev, []]);
+      setMessageStructuredData(prev => [...prev, null]); 
+      
+      setLoadingToolCalls(prev => {
+        const copy = [...prev];
+        if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
+        return copy;
+      });
+      
+      setRespondedToolCalls(prev => {
+        const arr = prev.map(inner => [...inner]);
+        if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
+        return arr;
+      });
+    }, 300); 
   };
 
-  // Define options for the combobox
   const menuOptions = [
     {
       value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
@@ -500,14 +594,6 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted">
-       {toastError && (
-         <div className="fixed top-4 right-4 z-50 max-w-md">
-           <div className="bg-destructive text-destructive-foreground p-4 rounded-lg shadow-lg flex items-center">
-             <span className="flex-1">{toastError}</span>
-             <button className="ml-4 text-destructive-foreground" onClick={() => setToastError(null)}>×</button>
-           </div>
-         </div>
-       )}
       <Card className="w-full max-w-3xl h-[80vh] flex flex-col mx-auto my-auto">
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
@@ -579,7 +665,6 @@ export default function Home() {
                 const calls = toolCalls[idx] || [];
 
                 if (isAssistant) {
-                  // Render Assistant message with potential tool calls
                   return (
                     <div key={idx} className={`mb-4 flex items-start gap-3 justify-start`}>
                       <Avatar className="h-8 w-8">
@@ -587,7 +672,6 @@ export default function Home() {
                       </Avatar>
                        <div className={`flex flex-col max-w-[75%] items-start`}>
                          <span className="text-xs text-muted-foreground mb-1">Assistant</span>
-                         {/* Only render the message bubble if msg exists */}
                          {msg && (
                            <div className={`rounded-lg px-3 py-2 bg-muted relative`}>
                              <div className="prose prose-sm max-w-none text-sm dark:prose-invert"><ReactMarkdown>{msg}</ReactMarkdown></div>
@@ -612,14 +696,21 @@ export default function Home() {
                                        onClick={() => handleReject(idx, callIdx)}
                                        disabled={loadingToolCalls[idx]?.[callIdx]}
                                      >
-                                       Reject
+                                       {loadingToolCalls[idx]?.[callIdx] ? (
+                                         <Loader2 className="h-4 w-4 animate-spin" />
+                                       ) : 'Reject'}
                                      </Button>
                                      <Button
                                        size="sm"
                                        onClick={() => handleAccept(idx, callIdx)}
                                        disabled={loadingToolCalls[idx]?.[callIdx]}
                                      >
-                                       {loadingToolCalls[idx]?.[callIdx] ? 'Processing...' : 'Accept'}
+                                       {loadingToolCalls[idx]?.[callIdx] ? (
+                                         <>
+                                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                           Processing...
+                                         </>
+                                       ) : 'Accept'}
                                      </Button>
                                    </div>
                                  )}
@@ -631,17 +722,83 @@ export default function Home() {
                      </div>
                    );
                 } else if (isTool) {
-                  // Render Tool Result message
+                  const toolName = toolCalls[idx]?.[0]?.function?.name;
+                  const structuredData = messageStructuredData[idx];
+
                   return (
                     <div key={idx} className={`mb-4 flex items-start gap-3 justify-start`}>
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>AI</AvatarFallback>
                       </Avatar>
-                      <div className={`flex flex-col max-w-[75%] items-start`}>
+                      <div className={`flex flex-col max-w-[90%] items-start`}>
                         <span className="text-xs text-muted-foreground mb-1">Tool Result</span>
-                        <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm">
+                        <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full">
                           <p className="text-xs font-semibold mb-1">({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})</p>
-                          <pre className="whitespace-pre-wrap break-all text-xs">{msg}</pre>
+                          {toolName === 'get_coin_top_gainers' && structuredData ? (
+                            <>
+                              <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
+                                <div className="grid grid-cols-7 gap-2 text-sm">
+                                  {/* Table Headers */}
+                                  <div className="text-center font-medium">#</div>
+                                  <div className="text-center font-medium">Name (Symbol)</div>
+                                  <div className="text-center font-medium">24h Change</div>
+                                  <div className="text-center font-medium">Market Cap</div>
+                                  <div className="text-center font-medium">Volume 24h</div>
+                                  <div className="text-center font-medium">Token Address</div>
+                                  <div className="text-center font-medium">Creator Address</div>
+                                  
+                                  {/* Table Body */}
+                                  {structuredData.data && structuredData.data.length > 0 ? (
+                                    structuredData.data.map((coin: any, coinIndex: number) => (
+                                      <React.Fragment key={coin.address}>
+                                        <div className="text-center py-2">{structuredData.startIndex + coinIndex + 1}</div>
+                                        <div className="text-center py-2 truncate">{coin.name} ({coin.symbol})</div>
+                                        <div className="text-center py-2">{coin.priceChange}%</div>
+                                        <div className="text-center py-2 truncate">{coin.marketCap}</div>
+                                        <div className="text-center py-2 truncate">{coin.volume24h}</div>
+                                        <div className="text-center py-2 truncate font-mono">{coin.address}</div>
+                                        <div className="text-center py-2 truncate font-mono">{coin.creatorAddress}</div>
+                                      </React.Fragment>
+                                    ))
+                                  ) : (
+                                    <div className="col-span-7 text-center py-2">No results found.</div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 flex gap-2 justify-center">
+                                {structuredData.currentPage > 1 && (
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handlePageChange(idx, 'prev')} 
+                                    disabled={paginationLoadingIdx===idx || structuredData.currentPage <= 1}
+                                  >
+                                    {paginationLoadingIdx===idx ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Loading
+                                      </>
+                                    ) : 'Previous'}
+                                  </Button>
+                                )}
+                                {structuredData.pageCursors[structuredData.currentPage] && (
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handlePageChange(idx, 'next')} 
+                                    disabled={paginationLoadingIdx===idx || !structuredData.pageCursors[structuredData.currentPage]}
+                                  >
+                                    {paginationLoadingIdx===idx ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Loading
+                                      </>
+                                    ) : 'Next'}
+                                  </Button>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <pre className="whitespace-pre-wrap break-all text-xs">{msg}</pre>
+                          )}
                           <div className="mt-2">
                             <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
                           </div>
@@ -650,7 +807,6 @@ export default function Home() {
                     </div>
                   );
                 } else if (isUser) {
-                   // Render User message
                   return (
                     <div key={idx} className={`mb-4 flex items-start gap-3 justify-end`}>
                       <div className={`flex flex-col max-w-[75%] items-end`}>
@@ -668,7 +824,6 @@ export default function Home() {
                     </div>
                   );
                 } else {
-                  // Fallback or handle other roles if any
                   return null;
                 }
               })

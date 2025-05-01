@@ -9,6 +9,7 @@ import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem'
 import { getPublicClient } from 'wagmi/actions'
 import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
+import { toast } from "sonner";
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -25,22 +26,12 @@ export default function Home() {
   const [toolCalls, setToolCalls] = useState<any[][]>([]);
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
-  const [toastError, setToastError] = useState<string | null>(null);
- 
 
 
  
 
   return (
     <main className="flex h-screen w-full flex-col justify-start bg-background">
-      {toastError && (
-        <div className="fixed top-4 right-4 z-50 max-w-md">
-          <div className="bg-destructive text-destructive-foreground p-4 rounded-lg shadow-lg flex items-center">
-            <span className="flex-1">{toastError}</span>
-            <button className="ml-4 text-destructive-foreground" onClick={() => setToastError(null)}>×</button>
-          </div>
-        </div>
-      )}
       <section className="relative flex-grow w-full overflow-hidden py-20 lg:py-36 bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 via-blue-400 to-purple-400">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
