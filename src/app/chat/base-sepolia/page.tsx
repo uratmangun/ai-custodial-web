@@ -27,6 +27,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const router = useRouter();
@@ -473,7 +474,7 @@ export default function Home() {
                 >
                   {comboboxValue
                     ? menuOptions.find((option) => option.value === comboboxValue)?.label
-                    : "Select ai model"}
+                    : "Select AI model"}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -500,6 +501,7 @@ export default function Home() {
                             )}
                           />
                           {option.label}
+                          <Badge variant="outline" className="ml-2">AI</Badge>
                         </CommandItem>
                       ))}
                     </CommandGroup>
