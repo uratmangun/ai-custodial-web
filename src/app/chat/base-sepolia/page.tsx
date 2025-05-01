@@ -107,7 +107,7 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payloadMessages }),
+        body: JSON.stringify({ messages: payloadMessages,modelName:comboboxValue }),
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -441,10 +441,11 @@ export default function Home() {
 
   // Define options for the combobox
   const menuOptions = [
-    { value: "profile", label: "Profile" },
-    { value: "billing", label: "Billing" },
-    { value: "team", label: "Team" },
-    { value: "subscription", label: "Subscription" },
+    {
+      value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+      label: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+      badge: "together.xyz",
+    },
   ];
 
   return (
@@ -470,7 +471,7 @@ export default function Home() {
                   variant="outline"
                   role="combobox"
                   aria-expanded={comboboxOpen}
-                  className="w-[200px] justify-between"
+                  className="w-[350px] justify-between"
                 >
                   {comboboxValue
                     ? menuOptions.find((option) => option.value === comboboxValue)?.label
@@ -478,7 +479,7 @@ export default function Home() {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0">
+              <PopoverContent className="p-0" style={{ width: 'var(--radix-popover-trigger-width)' }}>
                 <Command>
                   <CommandInput placeholder="Search option..." />
                   <CommandList>
@@ -500,8 +501,10 @@ export default function Home() {
                               comboboxValue === option.value ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          {option.label}
-                          <Badge variant="outline" className="ml-2">AI</Badge>
+                          <span className="truncate flex-1">{option.label}</span>
+                          {option.badge && (
+                            <Badge variant="outline" className="ml-2">{option.badge}</Badge>
+                          )}
                         </CommandItem>
                       ))}
                     </CommandGroup>

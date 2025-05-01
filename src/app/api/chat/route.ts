@@ -1,13 +1,37 @@
 import OpenAI from "openai";
+import { NextResponse } from "next/server"; // Import NextResponse for error handling
 
 export async function POST(request: Request) {
   try {
-    const { messages } = await request.json();
-  
+    // Extract messages and the requested modelName from the request body
+    const { messages, modelName: requestedModelName } = await request.json();
+
+    // Validate if modelName was provided
+    if (!requestedModelName) {
+      return NextResponse.json({ error: "modelName is required in the request body" }, { status: 400 });
+    }
+
+    const aiModels = {
+      "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free": {
+        baseUrl: "https://api.together.xyz/v1",
+        apiKey: process.env.TOGETHER_API_KEY
+      }
+    };
+
+    // Select the configuration based on the requested model name
+    const selectedModelConfig = aiModels[requestedModelName as keyof typeof aiModels];
+
+    // Validate if the requested model configuration exists
+    if (!selectedModelConfig) {
+      return NextResponse.json({ error: `Model '${requestedModelName}' not found or configured.` }, { status: 400 });
+    }
+
+    // Use the selected configuration
     const openai = new OpenAI({
-      baseURL: 'https://api.together.xyz/v1',
-      apiKey: process.env.TOGETHER_API_KEY,
+      baseURL: selectedModelConfig.baseUrl,
+      apiKey: selectedModelConfig.apiKey,
     });
+
     const tools: OpenAI.ChatCompletionTool[] = [
       {
         type: "function",
@@ -158,7 +182,7 @@ If a question falls outside these tools, respond "I cannot answer that question.
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
-      model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+      model: requestedModelName, // Use the requested model name
       messages: payloadMessages,
       tools,
     });
@@ -174,11 +198,7 @@ If a question falls outside these tools, respond "I cannot answer that question.
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error(error);
-    const errorMsg = error instanceof Error ? error.message : 'Unknown server error';
-    return new Response(JSON.stringify({ error: errorMsg }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error("Error processing chat request:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
