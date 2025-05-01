@@ -12,6 +12,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function Home() {
   const router = useRouter();
@@ -37,6 +52,8 @@ export default function Home() {
   const chain = config.chains.find((c) => c.id === chainId)
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [comboboxValue, setComboboxValue] = useState("");
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -421,6 +438,14 @@ export default function Home() {
     setRespondedToolCalls(prev => [...prev, []]);
   };
 
+  // Define options for the combobox
+  const menuOptions = [
+    { value: "profile", label: "Profile" },
+    { value: "billing", label: "Billing" },
+    { value: "team", label: "Team" },
+    { value: "subscription", label: "Subscription" },
+  ];
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted">
        {toastError && (
@@ -432,9 +457,57 @@ export default function Home() {
          </div>
        )}
       <Card className="w-full max-w-3xl h-[80vh] flex flex-col mx-auto my-auto">
-        <CardHeader className="flex flex-row items-center justify-between p-4 border-b">
-          <CardTitle>AI Custodial Chat (Base Sepolia)</CardTitle>
-          <ConnectButton />
+        <CardHeader className="flex flex-col p-4 border-b">
+          <div className="flex flex-row items-center justify-between w-full">
+            <CardTitle>AI Custodial Chat (Base Sepolia)</CardTitle>
+            <ConnectButton />
+          </div>
+          <div className="flex justify-end w-full mt-2">
+            <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={comboboxOpen}
+                  className="w-[200px] justify-between"
+                >
+                  {comboboxValue
+                    ? menuOptions.find((option) => option.value === comboboxValue)?.label
+                    : "Select ai model"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search option..." />
+                  <CommandList>
+                    <CommandEmpty>No option found.</CommandEmpty>
+                    <CommandGroup>
+                      {menuOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={(currentValue) => {
+                            setComboboxValue(currentValue === comboboxValue ? "" : currentValue);
+                            setComboboxOpen(false);
+                            // Add any side effect on select here, e.g., navigation
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              comboboxValue === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </CardHeader>
         <CardContent className="flex-grow p-0 overflow-hidden">
           <ScrollArea className="h-full w-full p-4">
