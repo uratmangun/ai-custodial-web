@@ -20,7 +20,11 @@ export default function BalancePage() {
 
       <div className="w-full max-w-2xl">
         {/* Use the new BalanceTable component */}
-        <BalanceTable balances={mockBalances} />
+        <BalanceTable balances={mockBalances} title="My Token Holdings" />
+        {/* Added wrapper div with margin-top */}
+        <div className="mt-4">
+          <BalanceTable balances={mockBalances} title="Your zora coin balances" />
+        </div>
       </div>
     </main>
   );
