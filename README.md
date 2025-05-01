@@ -27,31 +27,5 @@ https://youtu.be/XgQppscv380
 ## Prerequisites
 - Copy `.env.example` to `.env` and fill in your API keys.
 
-## Build and Start
-1. Build the Docker image:
-    ```fish
-    docker build -t ai-custodial-web .
-    ```
-2. Create (or reuse) a Docker network for the tunnel:
-    ```fish
-    docker network create cf-net
-    ```
-3. Run your Next.js app container on `cf-net`:
-    ```fish
-    docker run -d \
-      --network cf-net \
-      --env-file .env \
-      --name ai-custodial-web \
-      ai-custodial-web
-    ```
-4. Run the Cloudflare Tunnel on the same network:
-    ```fish
-    docker run -d \
-      --network cf-net \
-      --name cf-tunnel \
-      cloudflare/cloudflared:latest tunnel --url http://ai-custodial-web:3000
-    ```
-5. Check the tunnel logs for your public URL:
-    ```fish
-    docker logs -f cf-tunnel
-    ```
+## Build and Start with docker
+docker run -d --restart always --env-file .env --name ai-custodial-web --network my-net ai-custodial-web
