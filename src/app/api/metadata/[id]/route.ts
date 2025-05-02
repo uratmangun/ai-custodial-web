@@ -15,6 +15,6 @@ export async function GET(
   if (!doc) {
     return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
   }
-  const { name, description, image } = doc;
-  return NextResponse.json({ name, description, image } );
+  const { name, description,symbol, image } = doc;
+  return NextResponse.json({ name, description, symbol, image } );
 }

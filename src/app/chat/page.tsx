@@ -16,6 +16,7 @@ import { Check, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import {
   Command,
   CommandEmpty,
@@ -26,12 +27,10 @@ import {
 } from "@/components/ui/command";
 import {
   Popover,
-  PopoverContent,
   PopoverTrigger,
+  PopoverContent,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Pagination, PaginationItem, PaginationLink } from "@/components/ui/pagination";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export default function Home() {
   const router = useRouter();
@@ -47,6 +46,11 @@ export default function Home() {
   const [timestamps, setTimestamps] = useState<string[]>([]);
   const [dates, setDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<boolean[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Record<number,string>>({});
+  const [descValues, setDescValues] = useState<Record<number,string>>({});
+  const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
   const [toolCalls, setToolCalls] = useState<any[][]>([]);
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
@@ -115,7 +119,7 @@ export default function Home() {
       try {
         const response = await getCoinsTopGainers({ 
           count: 10,        // Number of coins per page
-          after: targetCursor 
+          after: targetCursor ?? undefined 
         });
         const newCoins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
         const newCursor = response.data?.exploreList?.pageInfo?.endCursor;
@@ -374,7 +378,7 @@ export default function Home() {
         try {
           response = await getCoinsTopGainers({ 
             count: 10,        // Number of coins per page
-            after: nextPage 
+            after: nextPage ?? undefined 
           });
         } catch (error) {
           toast.error(error instanceof Error ? error.message : 'Error fetching top gainers');
@@ -443,7 +447,7 @@ export default function Home() {
           const lines: string[] = [];
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
-          lines.push(`- **Chain:** ${chainIdDisplay}`);
+          lines.push(`- **Chain:** ${chain}`);
           if (coin.description) lines.push(`- **Description:** ${coin.description}`);
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
@@ -520,6 +524,21 @@ export default function Home() {
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
+        setLoadingToolCalls(prev => [...prev, []]);
+        return;
+      } else if (toolName === 'create_coin') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const { name, symbol,description,imageUrl } = args;
+        setMessages(prev => [...prev, `Coin created: ${name} (${symbol})`]);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
+        setIsUserMessage(prev => [...prev, false]);
+        setUsernames(prev => [...prev, 'AI']);
+        setDates(prev => [...prev, formatDate(new Date())]);
+        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+        setToolCalls(prev => [...prev, []]);
+        setRespondedToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, { type: 'create_coin', data: { name, symbol,description,imageUrl } }]);
         setLoadingToolCalls(prev => [...prev, []]);
         return;
       }
@@ -720,8 +739,8 @@ export default function Home() {
                   className="w-[350px] justify-between"
                 >
                   {comboboxValue
-                    ? menuOptions.find((option) => option.value === comboboxValue)?.label
-                    : "Select AI model"}
+                    ? menuOptions.find(o => o.value === comboboxValue)?.label
+                    : menuOptions[0]?.label}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -731,26 +750,18 @@ export default function Home() {
                   <CommandList>
                     <CommandEmpty>No option found.</CommandEmpty>
                     <CommandGroup>
-                      {menuOptions.map((option) => (
+                      {menuOptions.map(option => (
                         <CommandItem
                           key={option.value}
                           value={option.value}
-                          onSelect={(currentValue) => {
+                          onSelect={currentValue => {
                             setComboboxValue(currentValue === comboboxValue ? "" : currentValue);
                             setComboboxOpen(false);
-                            // Add any side effect on select here, e.g., navigation
                           }}
                         >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              comboboxValue === option.value ? "opacity-100" : "opacity-0"
-                            )}
-                          />
+                          <Check className={cn("mr-2 h-4 w-4", comboboxValue === option.value ? "opacity-100" : "opacity-0")} />
                           <span className="truncate flex-1">{option.label}</span>
-                          {option.badge && (
-                            <Badge variant="outline" className="ml-2">{option.badge}</Badge>
-                          )}
+                          {option.badge && <Badge variant="outline" className="ml-2">{option.badge}</Badge>}
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -862,7 +873,6 @@ export default function Home() {
                         <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full">
                           <p className="text-xs font-semibold mb-1">
                             {toolName || 'Tool'} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
-                            {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
                           </p>
                           {sd?.type === 'get_coin_comment' ? (
                             <>
@@ -1008,6 +1018,129 @@ export default function Home() {
                                 ): <div className="text-center py-2">No balances.</div>}
                               </div>
                             </>
+                          ) : sd?.type === 'create_coin' ? (
+                            createSuccess[idx] ? (
+                              <div className="p-2 bg-muted rounded-md text-green-600 font-medium">Congrats, your coin is created</div>
+                            ) : (
+                              <form
+                                className="space-y-2 p-2 bg-muted rounded-md"
+                                onSubmit={async e => {
+                                  e.preventDefault();
+                                  setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = false; return arr; });
+                                  setCreateLoading(true);
+                                  const formData = new FormData(e.currentTarget);
+                                  const payload = {
+                                    collection: 'metadata',
+                                    data: {
+                                      name: formData.get('name')?.toString() || '',
+                                      symbol: formData.get('symbol')?.toString() || '',
+                                      description: formData.get('description')?.toString() || '',
+                                      image: formData.get('imageUrl')?.toString() || '',
+                                      payoutAddress: formData.get('payoutAddress')?.toString() || '',
+                                      platformAddress: formData.get('platformAddress')?.toString() || '',
+                                    },
+                                  };
+                                  try {
+                                    const res = await fetch('/api/create-data', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify(payload),
+                                    });
+                                    if (res.ok) {
+                                      toast.success('Coin saved');
+                                      setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
+                                    } else toast.error('Failed to save coin');
+                                  } catch {
+                                    toast.error('Network error saving coin');
+                                  } finally {
+                                    setCreateLoading(false);
+                                  }
+                                }}
+                              >
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Name</label>
+                                  <Input name="name" placeholder="Name" defaultValue={sd.data.name} />
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Symbol</label>
+                                  <Input name="symbol" placeholder="Symbol" defaultValue={sd.data.symbol} />
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Image Preview</label>
+                                  <img src={previewUrls[idx] ?? sd.data.imageUrl} alt="Image Preview" className="h-24 w-auto object-contain mb-2 rounded" />
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Image URL</label>
+                                  <div className="flex items-center space-x-2">
+                                    <Input
+                                      name="imageUrl"
+                                      placeholder="Image URL"
+                                      value={previewUrls[idx] ?? sd.data.imageUrl}
+                                      onChange={e => {
+                                        const url = e.currentTarget.value;
+                                        setPreviewUrls(prev => ({ ...prev, [idx]: url }));
+                                      }}
+                                    />
+                                    <div className="relative inline-block group">
+                                      <Button type="button" onClick={async e => {
+                                        e.preventDefault();
+                                        const prompt = (descValues[idx] ?? sd.data.description ?? '').trim();
+                                        if (!prompt) {
+                                          toast.error('Description is required');
+                                          return;
+                                        }
+                                        setImageLoading(prev => ({ ...prev, [idx]: true }));
+                                        try {
+                                          const res = await fetch('/api/generate-image', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ prompt }),
+                                          });
+                                          if (!res.ok) {
+                                            toast.error('Error generating image');
+                                            return;
+                                          }
+                                          const json = await res.json();
+                                          if (json.images?.length) {
+                                            const b64 = json.images[0];
+                                            setPreviewUrls(prev => ({ ...prev, [idx]: `data:image/png;base64,${b64}` }));
+                                          }
+                                        } catch {
+                                          toast.error('Error generating image');
+                                        } finally {
+                                          setImageLoading(prev => ({ ...prev, [idx]: false }));
+                                        }
+                                      }}>
+                                        {imageLoading[idx] ? <Loader2 className="animate-spin h-4 w-4" /> : '✨'}
+                                      </Button>
+                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-700 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                                        generate image with ai from description
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Description</label>
+                                  <Input
+                                    name="description"
+                                    placeholder="Description"
+                                    value={descValues[idx] ?? sd.data.description}
+                                    onChange={e => setDescValues(prev => ({ ...prev, [idx]: e.currentTarget.value }))}
+                                  />
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Payout Address</label>
+                                  <Input name="payoutAddress" placeholder="Payout Address" defaultValue={address} />
+                                </div>
+                                <div className="flex flex-col">
+                                  <label className="text-xs mb-1">Platform Address</label>
+                                  <Input name="platformAddress" placeholder="Platform Address" defaultValue={address} />
+                                </div>
+                                <Button type="submit" disabled={createLoading}>
+                                  {createLoading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Create'}
+                                </Button>
+                              </form>
+                            )
                           ) : (
                             <pre className="whitespace-pre-wrap break-all text-xs">{msg}</pre>
                           )}

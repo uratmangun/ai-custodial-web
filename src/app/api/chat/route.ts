@@ -205,6 +205,36 @@ export async function POST(request: Request) {
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "create_coin",
+          description: "Create a new coin with name, symbol, description, and image URL.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "Name of the coin.",
+              },
+              symbol: {
+                type: "string",
+                description: "Symbol of the coin.",
+              },
+              description: {
+                type: "string",
+                description: "Description of the coin.",
+              },
+              imageUrl: {
+                type: "string",
+                description: "Image URL for the coin.",
+              },
+            },
+            required: ["name", "symbol"],
+            additionalProperties: false,
+          },
+        },
+      },
     ];
     const systemMessage = {
       role: "system",
@@ -217,8 +247,9 @@ Available tool calls:
   - get_coin_top_gainers: Get the top gaining coins on Base networks. Optional pagination parameter next_page.
   - check_coin: Get details for a single coin by address. Optionally specify chainId (base or baseSepolia, default is base).
   - get_coin_comment: Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination.
+  - create_coin: Create a new coin with name, symbol, description, and image URL.
 
-If a question falls outside these tools, respond "I cannot answer that question. Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment"`,
+If a question falls outside these tools, respond "Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment, create_coin"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
