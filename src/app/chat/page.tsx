@@ -96,46 +96,82 @@ export default function Home() {
 
   const handlePageChange = async (messageIndex: number, direction: 'next' | 'prev') => {
     const sd = messageStructuredData[messageIndex];
-    if (!sd || sd.type !== 'get_coin_top_gainers') return;
-    const perPage = 10;
-    let targetCursor: string | null | undefined;
-    let newPage = sd.currentPage;
-    if (direction === 'next') {
-      targetCursor = sd.pageCursors[sd.currentPage];
-      if (!targetCursor) return;
-      newPage++;
-    } else {
-      if (sd.currentPage <= 1) return;
-      targetCursor = sd.pageCursors[sd.currentPage - 2];
-      newPage--;
-    }
-    setPaginationLoadingIdx(messageIndex);
-    const toastId = toast.loading(`Loading page ${newPage}...`);
-    try {
-      const response = await getCoinsTopGainers({ 
-        count: 10,        // Number of coins per page
-        after: targetCursor 
-      });
-      const newCoins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
-      const newCursor = response.data?.exploreList?.pageInfo?.endCursor;
-      setMessageStructuredData(prev => {
-        const arr = [...prev];
-        const entry = arr[messageIndex];
-        if (entry && entry.type === 'get_coin_top_gainers') {
-          if (direction === 'next') entry.pageCursors = [...entry.pageCursors, newCursor];
-          entry.data = newCoins;
-          entry.currentPage = newPage;
-          entry.startIndex = (newPage - 1) * perPage;
-        }
-        arr[messageIndex] = entry;
-        return arr;
-      });
-      toast.success(`Page ${newPage} loaded.`, { id: toastId });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error fetching page', { id: toastId });
-    } finally {
-      setPaginationLoadingIdx(null);
-    }
+    if (!sd) return;
+    if (sd.type === 'get_coin_top_gainers') {
+      const perPage = 10;
+      let targetCursor: string | null | undefined;
+      let newPage = sd.currentPage;
+      if (direction === 'next') {
+        targetCursor = sd.pageCursors[sd.currentPage];
+        if (!targetCursor) return;
+        newPage++;
+      } else {
+        if (sd.currentPage <= 1) return;
+        targetCursor = sd.pageCursors[sd.currentPage - 2];
+        newPage--;
+      }
+      setPaginationLoadingIdx(messageIndex);
+      const toastId = toast.loading(`Loading page ${newPage}...`);
+      try {
+        const response = await getCoinsTopGainers({ 
+          count: 10,        // Number of coins per page
+          after: targetCursor 
+        });
+        const newCoins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
+        const newCursor = response.data?.exploreList?.pageInfo?.endCursor;
+        setMessageStructuredData(prev => {
+          const arr = [...prev];
+          const entry = arr[messageIndex];
+          if (entry && entry.type === 'get_coin_top_gainers') {
+            if (direction === 'next') entry.pageCursors = [...entry.pageCursors, newCursor];
+            entry.data = newCoins;
+            entry.currentPage = newPage;
+            entry.startIndex = (newPage - 1) * perPage;
+          }
+          arr[messageIndex] = entry;
+          return arr;
+        });
+        toast.success(`Page ${newPage} loaded.`, { id: toastId });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Error fetching page', { id: toastId });
+      } finally {
+        setPaginationLoadingIdx(null);
+      }
+    } else if (sd.type === 'get_coin_comment') {
+      let targetCursor: string | null | undefined;
+      let newPage = sd.currentPage;
+      if (direction === 'next') {
+        targetCursor = sd.pageCursors[sd.currentPage]; if (!targetCursor) return; newPage++;
+      } else {
+        if (sd.currentPage <= 1) return; targetCursor = sd.pageCursors[sd.currentPage - 2]; newPage--;
+      }
+      setPaginationLoadingIdx(messageIndex);
+      const toastId = toast.loading(`Loading comments page ${newPage}...`);
+      try {
+        const response = await getCoinComments({ address: sd.coinAddress, chain: sd.chain, after: targetCursor });
+        const comments = response.data?.zora20Token?.zoraComments?.edges.map((edge: any) => edge.node) || [];
+        const pageInfo2 = response.data?.zora20Token?.zoraComments?.pageInfo;
+        const commentData2 = comments.map((c: any) => {
+          let readableDate = '';
+          if (typeof c.timestamp === 'number') readableDate = new Date(c.timestamp * 1000).toLocaleString();
+          else if (typeof c.timestamp === 'string') readableDate = new Date(c.timestamp).toLocaleString();
+          return { comment: c.comment, userAddress: c.userAddress, handle: c.userProfile?.handle ?? 'N/A', readableDate };
+        });
+        setMessageStructuredData(prev => {
+          const arr = [...prev]; const entry = arr[messageIndex];
+          if (entry && entry.type === 'get_coin_comment') {
+            if (direction === 'next') entry.pageCursors = [...entry.pageCursors, pageInfo2?.endCursor];
+            entry.data = commentData2; entry.currentPage = newPage; entry.startIndex = (newPage - 1) * 10;
+          }
+          arr[messageIndex] = entry; return arr;
+        });
+        toast.success(`Comments page ${newPage} loaded.`, { id: toastId });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Error fetching comments', { id: toastId });
+      } finally {
+        setPaginationLoadingIdx(null);
+      }
+    } else { return; }
   };
 
   const handleSend = async () => {
@@ -373,12 +409,11 @@ export default function Home() {
         const coinAddress = args.address;
         const chain = args.chainId || 'base';
         const nextPage = args.next_page;
-        const chainIdDisplay = chain === 'base' ? 8453 : 84532;
         let response;
         try {
           response = await getCoin({
             address: coinAddress,
-            chain: chainIdDisplay,
+            chain: chain === 'base' ? 8453 : 84532,
           });
         } catch (err) {
           toast.error('Failed to fetch coin details');
@@ -406,16 +441,16 @@ export default function Home() {
           setMessageStructuredData(prev => [...prev, null]); 
         } else {
           const lines: string[] = [];
-          lines.push(`Coin: ${coin.name} (${coin.symbol})`);
-          lines.push(`Address: ${coin.address}`);
-          lines.push(`Chain: ${chainIdDisplay}`);
-          if (coin.description) lines.push(`Description: ${coin.description}`);
-          lines.push(`Total Supply: ${coin.totalSupply ?? 'N/A'}`);
-          lines.push(`Market Cap: ${coin.marketCap ?? 'N/A'}`);
-          lines.push(`24h Volume: ${coin.volume24h ?? 'N/A'}`);
-          lines.push(`Owner: ${coin.creatorAddress ?? 'N/A'}`);
-          lines.push(`Created At: ${coin.createdAt ?? 'N/A'}`);
-          lines.push(`Unique Holders: ${coin.uniqueHolders ?? 'N/A'}`);
+          lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
+          lines.push(`- **Address:** ${coin.address}`);
+          lines.push(`- **Chain:** ${chainIdDisplay}`);
+          if (coin.description) lines.push(`- **Description:** ${coin.description}`);
+          lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
+          lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
+          lines.push(`- **24h Volume:** ${coin.volume24h ?? 'N/A'}`);
+          lines.push(`- **Owner:** ${coin.creatorAddress ?? 'N/A'}`);
+          lines.push(`- **Created At:** ${coin.createdAt ?? 'N/A'}`);
+          lines.push(`- **Unique Holders:** ${coin.uniqueHolders ?? 'N/A'}`);
           if (coin.mediaContent?.previewImage) {
             lines.push(`![Preview Image](${coin.mediaContent.previewImage.small})`);
           }
@@ -455,35 +490,36 @@ export default function Home() {
         }
         const comments = response.data?.zora20Token?.zoraComments?.edges || [];
         const pageInfo = response.data?.zora20Token?.zoraComments?.pageInfo;
-        const lines: string[] = [];
-        lines.push(`Comments for coin ${coinAddress} (${chain}):`);
-        comments.forEach((item: any, idx: number) => {
-          const comment = item.node;
+        const commentData = comments.map((item: any) => {
+          const c = item.node;
           let readableDate = '';
-          if (typeof comment.timestamp === 'number') {
-            readableDate = new Date(comment.timestamp * 1000).toLocaleString();
-          } else if (typeof comment.timestamp === 'string') {
-            readableDate = new Date(comment.timestamp).toLocaleString();
-          }
-          lines.push(`${idx + 1}. ${comment.comment}`);
-          lines.push(`   User: ${comment.userAddress}`);
-          lines.push(`   Handle: ${comment.userProfile?.handle ?? 'N/A'}`);
-          lines.push(`   At: ${readableDate}`);
-          lines.push('-----------------------------------');
+          if (typeof c.timestamp === 'number') readableDate = new Date(c.timestamp * 1000).toLocaleString();
+          else if (typeof c.timestamp === 'string') readableDate = new Date(c.timestamp).toLocaleString();
+          return {
+            comment: c.comment,
+            userAddress: c.userAddress,
+            handle: c.userProfile?.handle ?? 'N/A',
+            readableDate,
+          };
         });
-        if (pageInfo?.endCursor) {
-          lines.push(`Next page cursor: ${pageInfo.endCursor}`);
-        }
-        setMessages(prev => [...prev, lines.join('\n')]);
-        setMessageRoles(prev => [...prev, 'assistant']);
-        setMessageToolCallIds(prev => [...prev, '']);
+        setMessageStructuredData(prev => [...prev, {
+          type: 'get_coin_comment',
+          coinAddress,
+          chain: chain === 'base' ? 8453 : 84532,
+          data: commentData,
+          pageCursors: [undefined, pageInfo?.endCursor],
+          currentPage: 1,
+          startIndex: 0,
+        }]);
+        setMessages(prev => [...prev, '']);
+        setMessageRoles(prev => [...prev, 'tool']);
+        setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
         setUsernames(prev => [...prev, 'AI']);
         setDates(prev => [...prev, formatDate(new Date())]);
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, null]); 
         setLoadingToolCalls(prev => [...prev, []]);
         return;
       }
@@ -737,6 +773,7 @@ export default function Home() {
                 const isTool = role === 'tool';
                 const isAssistant = role === 'assistant';
                 const calls = toolCalls[idx] || [];
+                const sd = messageStructuredData[idx];
 
                 if (isAssistant) {
                   return (
@@ -758,7 +795,10 @@ export default function Home() {
                            <div className="mt-2 space-y-2 w-full">
                              {calls.map((call: any, callIdx: number) => (
                                <Card key={callIdx} className={`bg-background border rounded-md p-3 ${respondedToolCalls[idx]?.[callIdx] ? 'opacity-50' : ''}`}>
-                                 <p className="text-xs font-semibold mb-1">Tool Call: <code className="text-xs bg-secondary px-1 rounded">{call.function.name}</code></p>
+                                 <p className="text-xs font-semibold mb-1">
+                                   {call.function.name || call.name} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
+                                   {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
+                                 </p>
                                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
                                    {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
                                  </pre>
@@ -822,13 +862,129 @@ export default function Home() {
                         <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full">
                           <p className="text-xs font-semibold mb-1">
                             {toolName || 'Tool'} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
-                            {structuredData?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
+                            {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
                           </p>
-                          {structuredData && structuredData.type === 'check_balance' ? (
+                          {sd?.type === 'get_coin_comment' ? (
                             <>
                               <div className="mb-3 p-2 bg-muted rounded-md">
-                                <p className="text-sm font-medium">Wallet: <span className="font-mono">{structuredData.walletAddress}</span></p>
-                                <p className="text-sm">ETH Balance: {structuredData.ethBalance} ETH</p>
+                                <p className="text-sm font-medium">Comments for {sd.coinAddress}</p>
+                              </div>
+                              <div className="w-full overflow-x-auto">
+                                <Table className="w-full table-fixed">
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-[5%] text-center">#</TableHead>
+                                      <TableHead className="w-[40%]">Comment</TableHead>
+                                      <TableHead className="w-[35%] text-center">User</TableHead>
+                                      <TableHead className="w-[20%] text-center">Date</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {sd.data.length > 0 ? (
+                                      sd.data.map((c: any, i: number) => (
+                                        <TableRow key={i}>
+                                          <TableCell className="text-center py-1">{sd.startIndex + i + 1}</TableCell>
+                                          <TableCell className="truncate py-1 text-xs">{c.comment}</TableCell>
+                                          <TableCell className="py-1">
+                                            <div className="flex items-center">
+                                              <span className="truncate font-mono text-xs mr-1">{c.userAddress}</span>
+                                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(c.userAddress); toast.success('Address copied');}}>
+                                                <Copy className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                            {c.handle !== 'N/A' && <div className="text-xs text-muted-foreground">@{c.handle}</div>}
+                                          </TableCell>
+                                          <TableCell className="text-center py-1 text-xs">{c.readableDate}</TableCell>
+                                        </TableRow>
+                                      ))
+                                    ) : (
+                                      <TableRow>
+                                        <TableCell colSpan={4} className="text-center py-2">No comments.</TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                              <div className="mt-2 flex gap-2 justify-center">
+                                {sd.currentPage > 1 && (
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx===idx || sd.currentPage <= 1}>
+                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Previous'}
+                                  </Button>
+                                )}
+                                {sd.pageCursors[sd.currentPage] && (
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx===idx || !sd.pageCursors[sd.currentPage]}>
+                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Next'}
+                                  </Button>
+                                )}
+                              </div>
+                            </>
+                          ) : sd?.type === 'get_coin_top_gainers' ? (
+                            <>
+                              <div className="w-full overflow-x-auto">
+                                <Table className="w-full table-fixed">
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="text-center w-[5%]">#</TableHead>
+                                      <TableHead className="text-center w-[15%]">Name</TableHead>
+                                      <TableHead className="text-center w-[10%]">Holders</TableHead>
+                                      <TableHead className="text-center w-[15%]">Market Cap</TableHead>
+                                      <TableHead className="text-center w-[10%]">Volume</TableHead>
+                                      <TableHead className="text-center w-[45%]">Addresses</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {sd.data.length > 0 ? (
+                                      sd.data.map((coin: any, coinIndex: number) => (
+                                        <TableRow key={coin.address}>
+                                          <TableCell className="text-center py-1">{sd.startIndex + coinIndex + 1}</TableCell>
+                                          <TableCell className="text-center py-1 truncate text-xs">{coin.name} ({coin.symbol})</TableCell>
+                                          <TableCell className="text-center py-1">{coin.uniqueHolders}</TableCell>
+                                          <TableCell className="text-center py-1 truncate text-xs">{coin.marketCap}</TableCell>
+                                          <TableCell className="text-center py-1 truncate text-xs">{coin.volume24h}</TableCell>
+                                          <TableCell className="py-1">
+                                            <div className="flex flex-col space-y-2">
+                                              <div className="flex items-center">
+                                                <span className="text-xs font-medium mr-1">Token:</span>
+                                                <span className="truncate font-mono text-xs mr-1">{coin.address}</span>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(coin.address);toast.success('Token address copied');}}>
+                                                  <Copy className="h-3 w-3" />
+                                                </Button>
+                                              </div>
+                                              <div className="flex items-center">
+                                                <span className="text-xs font-medium mr-1">Creator:</span>
+                                                <span className="truncate font-mono text-xs mr-1">{coin.creatorAddress}</span>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(coin.creatorAddress);toast.success('Creator address copied');}}><Copy className="h-3 w-3"/></Button>
+                                              </div>
+                                            </div>
+                                           </TableCell>
+                                        </TableRow>
+                                      ))
+                                    ) : (
+                                      <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-1">No results found.</TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                              <div className="mt-2 flex gap-2 justify-center">
+                                {sd.currentPage > 1 && (
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx===idx || sd.currentPage <= 1}>
+                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Previous'}
+                                  </Button>
+                                )}
+                                {sd.pageCursors[sd.currentPage] && (
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx===idx || !sd.pageCursors[sd.currentPage]}>
+                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Next'}
+                                  </Button>
+                                )}
+                              </div>
+                            </>
+                          ) : sd?.type === 'check_balance' ? (
+                            <>
+                              <div className="mb-3 p-2 bg-muted rounded-md">
+                                <p className="text-sm font-medium">Wallet: <span className="font-mono">{sd.walletAddress}</span></p>
+                                <p className="text-sm">ETH Balance: {sd.ethBalance} ETH</p>
                               </div>
                               <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
                                 <div className="grid grid-cols-3 gap-2 text-sm items-center bg-muted p-2 rounded-t-md">
@@ -836,8 +992,8 @@ export default function Home() {
                                   <div className="text-center font-medium">Balance</div>
                                   <div className="text-center font-medium">Token Address</div>
                                 </div>
-                                {structuredData.data && structuredData.data.length > 0 ? (
-                                  structuredData.data.map((bal:any, i:number)=>(
+                                {sd.data && sd.data.length > 0 ? (
+                                  sd.data.map((bal:any, i:number)=>(
                                     <div key={i} className="grid grid-cols-3 gap-2 text-sm items-center border-b border-muted py-1">
                                       <div className="text-center py-2 truncate">{bal.name} ({bal.symbol})</div>
                                       <div className="text-center py-2">{bal.balance.toFixed(4)} {bal.symbol}</div>
@@ -850,94 +1006,6 @@ export default function Home() {
                                     </div>
                                   ))
                                 ): <div className="text-center py-2">No balances.</div>}
-                              </div>
-                            </>
-                          ) : structuredData && structuredData.type === 'get_coin_top_gainers' ? (
-                            <>
-                              <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
-                                <div className="grid grid-cols-7 gap-2 text-sm items-center">
-                                  {/* Table Headers */}
-                                  <div className="text-center font-medium">#</div>
-                                  <div className="text-center font-medium">Name (Symbol)</div>
-                                  <div className="text-center font-medium">Unique holders</div>
-                                  <div className="text-center font-medium">Market Cap</div>
-                                  <div className="text-center font-medium">Volume 24h</div>
-                                  <div className="text-center font-medium">Token Address</div>
-                                  <div className="text-center font-medium">Creator Address</div>
-                                  
-                                  {/* Table Body */}
-                                  {structuredData.data && structuredData.data.length > 0 ? (
-                                    structuredData.data.map((coin: any, coinIndex: number) => (
-                                      <React.Fragment key={coin.address}>
-                                        <div className="text-center py-2">{structuredData.startIndex + coinIndex + 1}</div>
-                                        <div className="text-center py-2 truncate">{coin.name} ({coin.symbol})</div>
-                                        <div className="text-center py-2">{coin.uniqueHolders}</div>
-                                        <div className="text-center py-2 truncate">{coin.marketCap}</div>
-                                        <div className="text-center py-2 truncate">{coin.volume24h}</div>
-                                        <div className="text-center py-2 flex items-center justify-center">
-                                          <span className="truncate font-mono mr-1">{coin.address}</span>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="h-6 w-6 p-0 ml-1" 
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(coin.address);
-                                              toast.success("Address copied to clipboard");
-                                            }}
-                                          >
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                        <div className="text-center py-2 flex items-center justify-center">
-                                          <span className="truncate font-mono mr-1">{coin.creatorAddress}</span>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="h-6 w-6 p-0 ml-1" 
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(coin.creatorAddress);
-                                              toast.success("Creator address copied to clipboard");
-                                            }}
-                                          >
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </React.Fragment>
-                                    ))
-                                  ) : (
-                                    <div className="col-span-7 text-center py-2">No results found.</div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-2 flex gap-2 justify-center">
-                                {structuredData.currentPage > 1 && (
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handlePageChange(idx, 'prev')} 
-                                    disabled={paginationLoadingIdx===idx || structuredData.currentPage <= 1}
-                                  >
-                                    {paginationLoadingIdx===idx ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Loading
-                                      </>
-                                    ) : 'Previous'}
-                                  </Button>
-                                )}
-                                {structuredData.pageCursors[structuredData.currentPage] && (
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handlePageChange(idx, 'next')} 
-                                    disabled={paginationLoadingIdx===idx || !structuredData.pageCursors[structuredData.currentPage]}
-                                  >
-                                    {paginationLoadingIdx===idx ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Loading
-                                      </>
-                                    ) : 'Next'}
-                                  </Button>
-                                )}
                               </div>
                             </>
                           ) : (
