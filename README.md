@@ -28,10 +28,45 @@ https://youtu.be/XgQppscv380
   - `description` (string): Description of the coin.
   - `imageUrl` (string): Image URL for the coin.
 
-# How to run with docker
+# How to run with docker and forward to cloudflare tunnel hosted domain
 
 ## Prerequisites
 - Copy `.env.example` to `.env` and fill in your API keys.
 
-## Build and Start with docker
+# Build the Docker image
+docker build -t ai-custodial-web .
+# Create a Docker network
+docker network create my-net
+# Run Cloudflare tunnel container
+docker run -d --restart always --name cloudflared \
+  --network my-net \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token YOUR_CLOUDFLARE_TUNNEL_TOKEN
+# Configure Cloudflare Tunnel in Zero Trust Dashboard
+
+1. Log in to the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
+2. Navigate to **Access > Tunnels**
+3. Select your tunnel or create a new one
+4. In the **Public Hostname** tab, click **Add a public hostname**
+5. Configure the following:
+   - **Domain**: your-domain.com
+   - **Path**: / (or specific path)
+   - **Service**: Select HTTP
+   - **URL**: http://ai-custodial-web:3000
+6. Click **Save hostname**
+
+The tunnel will route traffic from your domain to the containerized application running on port 3000.
+
+# Run the container
+
 docker run -d --restart always --env-file .env --name ai-custodial-web --network my-net ai-custodial-web
+
+# Stop the container
+docker stop ai-custodial-web
+
+# Remove the container
+docker rm ai-custodial-web
+
+# Remove the image
+docker rmi ai-custodial-web
+
