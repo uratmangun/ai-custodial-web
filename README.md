@@ -9,19 +9,25 @@ https://zora-coin.uratmangun.ovh/
 https://youtu.be/XgQppscv380
 
 # List of tools
- - `switch_chain`: Switch between Ethereum blockchains. Default is `baseSepolia`.
- - `current_chain`: Get the current active blockchain chain.
- - `check_address`: Get the connected wallet address.
- - `check_balance`: Get the balance of the connected wallet or specified ERC-20 token. Optional parameters:
-   - `address` (string): user or token contract address.
-   - `next_page` (string): pagination cursor.
- - `get_coin_top_gainers`: Get the top gaining coins on Zora. Optional parameter:
-   - `next_page` (string): pagination cursor.
- - `check_coin`: Get details for a single coin by its address. Optional parameter:
-   - `chainId` ("base" | "baseSepolia"): chain to query (default is `base`).
- - `get_coin_comment`: Get comments for a single coin by its address. Optional parameters:
-   - `chain` ("base" | "baseSepolia"): chain to query (default is `base`).
-   - `next_page` (string): pagination cursor.
+- `switch_chain`: Switch between Ethereum blockchains. Default is `baseSepolia`.
+- `current_chain`: Get the current active blockchain chain.
+- `check_address`: Get the connected wallet address.
+- `check_balance`: Get the balance of the connected wallet or specified ERC-20 token. Optional parameters:
+  - `address` (string): user or token contract address.
+  - `next_page` (string): pagination cursor.
+- `get_coin_top_gainers`: Get the top gaining coins on Zora. Optional parameter:
+  - `next_page` (string): pagination cursor.
+- `check_coin`: Get details for a single coin by its address. Optional parameter:
+  - `chainId` ("base" | "baseSepolia"): chain to query (default is `base`).
+- `get_coin_comment`: Get comments for a single coin by its address. Optional parameters:
+  - `chain` ("base" | "baseSepolia"): chain to query (default is `base`).
+  - `next_page` (string): pagination cursor.
+- `create_coin`: Create a new coin with name, symbol, description, and image URL. Parameters:
+  - `name` (string): Name of the coin.
+  - `symbol` (string): Symbol of the coin.
+  - `description` (string): Description of the coin.
+  - `imageUrl` (string): Image URL for the coin.
+
 # How to run with docker
 
 ## Prerequisites
