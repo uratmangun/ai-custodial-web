@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export default function Home() {
   const router = useRouter();
@@ -50,6 +51,15 @@ export default function Home() {
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
   const [paginationLoadingIdx, setPaginationLoadingIdx] = useState<number | null>(null);
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [comboboxValue, setComboboxValue] = useState("");
+  const [tokens, setTokens] = useState([
+    { name: 'Token A', address: '0xabc123...', amount: 100 },
+    { name: 'Token B', address: '0xdef456...', amount: 250 },
+    { name: 'Token C', address: '0xghi789...', amount: 50 },
+  ]);
+  const [sortAsc, setSortAsc] = useState(true);
+  const sortedTokens = [...tokens].sort((a, b) => sortAsc ? a.amount - b.amount : b.amount - a.amount);
   const { address, isConnected } = useAccount();
   const chainId = useChainId()
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -57,8 +67,6 @@ export default function Home() {
   const chain = config.chains.find((c) => c.id === chainId)
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
-  const [comboboxOpen, setComboboxOpen] = useState(false);
-  const [comboboxValue, setComboboxValue] = useState("");
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -144,7 +152,6 @@ export default function Home() {
     setToolCalls(prev => [...prev, []]);
     setRespondedToolCalls(prev => [...prev, []]);
     setMessageStructuredData(prev => [...prev, null]); 
-
     setLoading(true);
     try {
       const payloadMessages = messages
@@ -260,10 +267,6 @@ export default function Home() {
         setMessageStructuredData(prev => [...prev, null]); 
         setLoadingToolCalls(prev => [...prev, []]);
       } else if (toolName === 'check_balance') {
-        if (!isConnected) {
-          toast.error('Please connect to a wallet first');
-          return;
-        }
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const addressParam = args.address || address;
         const nextPage = args.next_page;
@@ -275,10 +278,10 @@ export default function Home() {
         });
        
         const profile: any = response.data?.profile;
-        
         const coinBalances = profile.coinBalances?.edges || [];
         const pageInfo = profile.coinBalances?.pageInfo;
         const lines: string[] = [];
+        let balanceData: any[] = [];
         lines.push(addressParam
           ? `Balance for ${addressParam === address ? 'your wallet' : addressParam}: ${balance} ETH`
           : 'No address available');
@@ -286,6 +289,16 @@ export default function Home() {
           lines.push('Please switch to base chain to see full list of zora coin balances');
         } else {
           lines.push(`Found ${coinBalances.length} coin balances:`);
+          balanceData = coinBalances.map((item: any) => {
+            const bal = item.node;
+            return {
+              name: bal.coin?.name || 'Unknown',
+              symbol: bal.coin?.symbol || 'N/A',
+              balance: Number(bal.balance) / 1e18,
+              address: bal.coin?.address || 'N/A',
+            };
+          });
+          lines.push(`ETH Balance: ${balance} ETH`);
           coinBalances.forEach((item: any, idx: number) => {
             const bal = item.node;
             lines.push(`${idx + 1}. ${bal.coin?.name || 'Unknown'} (${bal.coin?.symbol || 'N/A'})`);
@@ -307,8 +320,13 @@ export default function Home() {
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, null]); 
-        setLoadingToolCalls(prev => [...prev, []]);
+        setMessageStructuredData(prev => [...prev, {
+          type: 'check_balance',
+          data: balanceData,
+          nextCursor: pageInfo?.endCursor,
+          walletAddress: addressParam,
+          ethBalance: balance,
+        }]);
       } else if (toolName === 'get_coin_top_gainers') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const nextPage = args.next_page;
@@ -593,8 +611,64 @@ export default function Home() {
   ];
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted">
-      <Card className="w-full max-w-3xl h-[80vh] flex flex-col mx-auto my-auto">
+    <main className="flex min-h-screen items-start justify-center gap-8 p-6 bg-muted">
+      <div className="flex flex-col gap-6 h-[80vh]">
+        <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
+          <CardHeader className="flex flex-col p-4 border-b">
+            <CardTitle>transaction history</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Token Name</TableHead>
+                  <TableHead>Contract Address</TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => setSortAsc(!sortAsc)}>
+                    Amount {sortAsc ? '↑' : '↓'}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedTokens.map((token, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{token.name}</TableCell>
+                    <TableCell>{token.address}</TableCell>
+                    <TableCell>{token.amount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
+          <CardHeader className="flex flex-col p-4 border-b">
+            <CardTitle>list of token you created</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Token Name</TableHead>
+                  <TableHead>Contract Address</TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => setSortAsc(!sortAsc)}>
+                    Amount {sortAsc ? '↑' : '↓'}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedTokens.map((token, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{token.name}</TableCell>
+                    <TableCell>{token.address}</TableCell>
+                    <TableCell>{token.amount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+      <Card className="w-full max-w-3xl h-[80vh] flex flex-col">
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
             <CardTitle>AI Custodial Chat</CardTitle>
@@ -686,7 +760,7 @@ export default function Home() {
                                <Card key={callIdx} className={`bg-background border rounded-md p-3 ${respondedToolCalls[idx]?.[callIdx] ? 'opacity-50' : ''}`}>
                                  <p className="text-xs font-semibold mb-1">Tool Call: <code className="text-xs bg-secondary px-1 rounded">{call.function.name}</code></p>
                                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                                   {JSON.stringify(JSON.parse(call.function.arguments), null, 2)}
+                                   {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
                                  </pre>
                                  {!respondedToolCalls[idx]?.[callIdx] && (
                                    <div className="mt-2 flex gap-2 justify-end">
@@ -722,7 +796,20 @@ export default function Home() {
                      </div>
                    );
                 } else if (isTool) {
-                  const toolName = toolCalls[idx]?.[0]?.function?.name;
+                  let toolName = '';
+                  if (messageToolCallIds[idx]) {
+                    for (let i = 0; i < idx; i++) {
+                      if (messageRoles[i] === 'assistant') {
+                        const calls = toolCalls[i] || [];
+                        for (const call of calls) {
+                          if (call.id === messageToolCallIds[idx]) {
+                            toolName = call.function?.name || '';
+                            break;
+                          }
+                        }
+                      }
+                    }
+                  }
                   const structuredData = messageStructuredData[idx];
 
                   return (
@@ -733,15 +820,46 @@ export default function Home() {
                       <div className={`flex flex-col max-w-[90%] items-start`}>
                         <span className="text-xs text-muted-foreground mb-1">Tool Result</span>
                         <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full">
-                          <p className="text-xs font-semibold mb-1">({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})</p>
-                          {toolName === 'get_coin_top_gainers' && structuredData ? (
+                          <p className="text-xs font-semibold mb-1">
+                            {toolName || 'Tool'} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
+                            {structuredData?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
+                          </p>
+                          {structuredData && structuredData.type === 'check_balance' ? (
                             <>
-                              <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
-                                <div className="grid grid-cols-7 gap-2 text-sm">
+                              <div className="mb-3 p-2 bg-muted rounded-md">
+                                <p className="text-sm font-medium">Wallet: <span className="font-mono">{structuredData.walletAddress}</span></p>
+                                <p className="text-sm">ETH Balance: {structuredData.ethBalance} ETH</p>
+                              </div>
+                              <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
+                                <div className="grid grid-cols-3 gap-2 text-sm items-center bg-muted p-2 rounded-t-md">
+                                  <div className="text-center font-medium">Name (Symbol)</div>
+                                  <div className="text-center font-medium">Balance</div>
+                                  <div className="text-center font-medium">Token Address</div>
+                                </div>
+                                {structuredData.data && structuredData.data.length > 0 ? (
+                                  structuredData.data.map((bal:any, i:number)=>(
+                                    <div key={i} className="grid grid-cols-3 gap-2 text-sm items-center border-b border-muted py-1">
+                                      <div className="text-center py-2 truncate">{bal.name} ({bal.symbol})</div>
+                                      <div className="text-center py-2">{bal.balance.toFixed(4)} {bal.symbol}</div>
+                                      <div className="text-center py-2 flex items-center justify-center">
+                                        <span className="truncate font-mono mr-1">{bal.address}</span>
+                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={()=>{navigator.clipboard.writeText(bal.address);toast.success('Address copied');}}>
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))
+                                ): <div className="text-center py-2">No balances.</div>}
+                              </div>
+                            </>
+                          ) : structuredData && structuredData.type === 'get_coin_top_gainers' ? (
+                            <>
+                              <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
+                                <div className="grid grid-cols-7 gap-2 text-sm items-center">
                                   {/* Table Headers */}
                                   <div className="text-center font-medium">#</div>
                                   <div className="text-center font-medium">Name (Symbol)</div>
-                                  <div className="text-center font-medium">24h Change</div>
+                                  <div className="text-center font-medium">Unique holders</div>
                                   <div className="text-center font-medium">Market Cap</div>
                                   <div className="text-center font-medium">Volume 24h</div>
                                   <div className="text-center font-medium">Token Address</div>
@@ -753,11 +871,37 @@ export default function Home() {
                                       <React.Fragment key={coin.address}>
                                         <div className="text-center py-2">{structuredData.startIndex + coinIndex + 1}</div>
                                         <div className="text-center py-2 truncate">{coin.name} ({coin.symbol})</div>
-                                        <div className="text-center py-2">{coin.priceChange}%</div>
+                                        <div className="text-center py-2">{coin.uniqueHolders}</div>
                                         <div className="text-center py-2 truncate">{coin.marketCap}</div>
                                         <div className="text-center py-2 truncate">{coin.volume24h}</div>
-                                        <div className="text-center py-2 truncate font-mono">{coin.address}</div>
-                                        <div className="text-center py-2 truncate font-mono">{coin.creatorAddress}</div>
+                                        <div className="text-center py-2 flex items-center justify-center">
+                                          <span className="truncate font-mono mr-1">{coin.address}</span>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="h-6 w-6 p-0 ml-1" 
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(coin.address);
+                                              toast.success("Address copied to clipboard");
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                        <div className="text-center py-2 flex items-center justify-center">
+                                          <span className="truncate font-mono mr-1">{coin.creatorAddress}</span>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="h-6 w-6 p-0 ml-1" 
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(coin.creatorAddress);
+                                              toast.success("Creator address copied to clipboard");
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </React.Fragment>
                                     ))
                                   ) : (

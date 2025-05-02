@@ -51,12 +51,6 @@ export default function Home() {
               <Button variant="default" size="lg" asChild>
                 <Link href="/chat">Chat </Link>
               </Button>
-              <Button variant="default" size="lg" asChild>
-                <Link href="/simulation">Simulate trading with AI</Link>
-              </Button>
-              <Button variant="default" size="lg" asChild>
-                <Link href="/balance">Token Balance</Link>
-              </Button>
             </div>
             <div className="mt-4 flex justify-center">
               <ConnectButton />
