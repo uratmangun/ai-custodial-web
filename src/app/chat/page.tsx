@@ -40,7 +40,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-
+import { getTransactionReceipt } from '@wagmi/core';
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -557,6 +557,29 @@ export default function Home() {
         setMessageStructuredData(prev => [...prev, { type: 'create_coin', data: { name, symbol,description,imageUrl } }]);
         setLoadingToolCalls(prev => [...prev, []]);
         return;
+      } else if (toolName === 'check_coin_address') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const { transaction } = args;
+        try {
+          const receipt = await getTransactionReceipt(config, { hash: transaction });
+          const coinDeployment = getCoinCreateFromLogs(receipt);
+          const coinAddress = coinDeployment?.coin;
+          const msg = `Transaction: ${transaction}\nCoin Address: ${coinAddress}`;
+          setMessages(prev => [...prev, msg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, { type: 'check_coin_address', data: { transaction, coinAddress } }]);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to check coin address');
+        }
+        setLoadingToolCalls(prev => [...prev, []]);
+        return;
       }
     } catch (err) {
       console.error(err);
@@ -718,16 +741,14 @@ export default function Home() {
                 <TableRow>
                   <TableHead>txHash</TableHead>
                   <TableHead>address</TableHead>
-                  <TableHead>chainId</TableHead>
                   <TableHead>date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {transactions.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell>{tx.txHash}</TableCell>
-                    <TableCell>{tx.address}</TableCell>
-                    <TableCell>{tx.chainId}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{tx.txHash}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{tx.address}</TableCell>
                     <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
@@ -776,8 +797,8 @@ export default function Home() {
               <TableBody>
                 {createCoinTxs.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell>{tx.txHash}</TableCell>
-                    <TableCell>{tx.address}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{tx.txHash}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{tx.address}</TableCell>
                     <TableCell>{tx.metadataId}</TableCell>
                     <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
@@ -835,8 +856,8 @@ export default function Home() {
             </Popover>
           </div>
         </CardHeader>
-        <CardContent className="flex-grow p-0 overflow-hidden">
-          <ScrollArea className="h-full w-full p-4">
+        <CardContent className="flex-1 p-4 overflow-hidden">
+          <ScrollArea className="h-full pr-4">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 Start chatting...
@@ -856,11 +877,11 @@ export default function Home() {
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>AI</AvatarFallback>
                       </Avatar>
-                       <div className={`flex flex-col max-w-[75%] items-start`}>
+                       <div className={`flex flex-col max-w-[60%] items-start`}>
                          <span className="text-xs text-muted-foreground mb-1">Assistant</span>
                          {msg && (
-                           <div className={`rounded-lg px-3 py-2 bg-muted relative`}>
-                             <div className="prose prose-sm max-w-none text-sm dark:prose-invert"><ReactMarkdown>{msg}</ReactMarkdown></div>
+                           <div className={`rounded-lg px-3 py-2 bg-muted relative max-w-full`}>
+                             <div className="prose prose-sm max-w-none text-sm dark:prose-invert break-words whitespace-pre-wrap overflow-wrap-anywhere"><ReactMarkdown>{msg}</ReactMarkdown></div>
                              <div className="mt-2">
                                <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
                              </div>
@@ -874,9 +895,11 @@ export default function Home() {
                                    {call.function.name || call.name} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
                                    {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
                                  </p>
-                                 <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                                   {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
-                                 </pre>
+                                 <div className="max-w-[300px] overflow-x-auto">
+                                   <pre className="text-xs bg-muted p-2 rounded whitespace-pre overflow-x-auto">
+                                     {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
+                                   </pre>
+                                 </div>
                                  {!respondedToolCalls[idx]?.[callIdx] && (
                                    <div className="mt-2 flex gap-2 justify-end">
                                      <Button
@@ -932,9 +955,9 @@ export default function Home() {
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>AI</AvatarFallback>
                       </Avatar>
-                      <div className={`flex flex-col max-w-[90%] items-start`}>
+                      <div className={`flex flex-col max-w-[60%] items-start`}>
                         <span className="text-xs text-muted-foreground mb-1">Tool Result</span>
-                        <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full">
+                        <div className="rounded-lg px-3 py-2 bg-secondary text-secondary-foreground shadow-sm w-full max-w-full overflow-hidden">
                           <p className="text-xs font-semibold mb-1">
                             {toolName || 'Tool'} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
                           </p>
@@ -1265,7 +1288,7 @@ export default function Home() {
                               </form>
                             )
                           ) : (
-                            <pre className="whitespace-pre-wrap break-all text-xs">{msg}</pre>
+                            <pre className="whitespace-pre-wrap break-words overflow-wrap-anywhere text-xs">{msg}</pre>
                           )}
                           <div className="mt-2">
                             <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
@@ -1277,10 +1300,10 @@ export default function Home() {
                 } else if (isUser) {
                   return (
                     <div key={idx} className={`mb-4 flex items-start gap-3 justify-end`}>
-                      <div className={`flex flex-col max-w-[75%] items-end`}>
+                      <div className={`flex flex-col max-w-[60%] items-end`}>
                         <span className="text-xs text-muted-foreground mb-1">{usernames[idx]}</span>
-                        <div className={`rounded-lg px-3 py-2 bg-primary text-primary-foreground`}>
-                          <p className="text-sm">{msg}</p>
+                        <div className={`rounded-lg px-3 py-2 bg-primary text-primary-foreground max-w-full`}>
+                          <p className="text-sm break-words whitespace-pre-wrap overflow-wrap-anywhere">{msg}</p>
                           <div className="mt-2">
                             <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
                           </div>

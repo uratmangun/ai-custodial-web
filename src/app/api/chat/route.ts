@@ -235,6 +235,24 @@ export async function POST(request: Request) {
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "check_coin_address",
+          description: "Check a coin by its transaction address.",
+          parameters: {
+            type: "object",
+            properties: {
+              transaction: {
+                type: "string",
+                description: "Transaction string for the coin address.",
+              },
+            },
+            required: ["transaction"],
+            additionalProperties: false,
+          },
+        },
+      },
     ];
     const systemMessage = {
       role: "system",
@@ -248,8 +266,9 @@ Available tool calls:
   - check_coin: Get details for a single coin by address. Optionally specify chainId (base or baseSepolia, default is base).
   - get_coin_comment: Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination.
   - create_coin: Create a new coin with name, symbol, description, and image URL.
+  - check_coin_address: Check a coin by its transaction address.
 
-If a question falls outside these tools, respond "Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment, create_coin"`,
+If a question falls outside these tools, respond "Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment, create_coin, check_coin_address"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
