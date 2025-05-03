@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback} from "@/components/ui/avatar";
 import { Check, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCcw } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import {
   Command,
@@ -33,6 +33,13 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 export default function Home() {
   const router = useRouter();
@@ -68,6 +75,9 @@ export default function Home() {
   ]);
   const [sortAsc, setSortAsc] = useState(true);
   const sortedTokens = [...tokens].sort((a, b) => sortAsc ? a.amount - b.amount : b.amount - a.amount);
+  const [selectedChain, setSelectedChain] = useState<string>("8453");
+  const [transactions, setTransactions] = useState<{ txHash: string; address: string; chainId: string; date: string; }[]>([]);
+  const [createCoinTxs, setCreateCoinTxs] = useState<{ txHash: string; address: string; metadataId: string; date: string; }[]>([]);
   const { address, isConnected } = useAccount();
   const chainId = useChainId()
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -678,23 +688,47 @@ export default function Home() {
           <CardHeader className="flex flex-col p-4 border-b">
             <CardTitle>transaction history</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 overflow-y-auto">
+            <div className="mb-4 flex items-center gap-2">
+              <label htmlFor="chain-select" className="block text-sm font-medium mb-2">
+                Chain
+              </label>
+              <Select value={selectedChain} onValueChange={setSelectedChain}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select chain" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="8453">Base</SelectItem>
+                  <SelectItem value="84532">Base Sepolia</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" title="reload data" onClick={async () => {
+                try {
+                  const res = await fetch(`/api/read-data?collection=transactions&chainId=${selectedChain}&address=${address}`);
+                  const json = await res.json();
+                  if (json.success) setTransactions(json.results);
+                  else toast.error(json.error || 'Failed to load');
+                } catch (err) { toast.error('Error fetching'); }
+              }}>
+                <RefreshCcw className="h-4 w-4" />
+              </Button>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Token Name</TableHead>
-                  <TableHead>Contract Address</TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => setSortAsc(!sortAsc)}>
-                    Amount {sortAsc ? '↑' : '↓'}
-                  </TableHead>
+                  <TableHead>txHash</TableHead>
+                  <TableHead>address</TableHead>
+                  <TableHead>chainId</TableHead>
+                  <TableHead>date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTokens.map((token, idx) => (
+                {transactions.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell>{token.name}</TableCell>
-                    <TableCell>{token.address}</TableCell>
-                    <TableCell>{token.amount}</TableCell>
+                    <TableCell>{tx.txHash}</TableCell>
+                    <TableCell>{tx.address}</TableCell>
+                    <TableCell>{tx.chainId}</TableCell>
+                    <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -705,23 +739,47 @@ export default function Home() {
           <CardHeader className="flex flex-col p-4 border-b">
             <CardTitle>list of token you created</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 overflow-y-auto">
+            <div className="mb-4 flex items-center gap-2">
+              <label htmlFor="chain-select" className="block text-sm font-medium mb-2">
+                Chain
+              </label>
+              <Select value={selectedChain} onValueChange={setSelectedChain}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select chain" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="8453">Base</SelectItem>
+                  <SelectItem value="84532">Base Sepolia</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" title="reload data" onClick={async () => {
+                try {
+                  const res = await fetch(`/api/read-data?collection=create_coins_transactions&chainId=${selectedChain}&address=${address}`);
+                  const json = await res.json();
+                  if (json.success) setCreateCoinTxs(json.results);
+                  else toast.error(json.error || 'Failed to load');
+                } catch (err) { toast.error('Error fetching'); }
+              }}>
+                <RefreshCcw className="h-4 w-4" />
+              </Button>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Token Name</TableHead>
-                  <TableHead>Contract Address</TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => setSortAsc(!sortAsc)}>
-                    Amount {sortAsc ? '↑' : '↓'}
-                  </TableHead>
+                  <TableHead>txHash</TableHead>
+                  <TableHead>address</TableHead>
+                  <TableHead>metadataId</TableHead>
+                  <TableHead>date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTokens.map((token, idx) => (
+                {createCoinTxs.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell>{token.name}</TableCell>
-                    <TableCell>{token.address}</TableCell>
-                    <TableCell>{token.amount}</TableCell>
+                    <TableCell>{tx.txHash}</TableCell>
+                    <TableCell>{tx.address}</TableCell>
+                    <TableCell>{tx.metadataId}</TableCell>
+                    <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1014,7 +1072,7 @@ export default function Home() {
                                       <div className="text-center py-2 truncate">{bal.name} ({bal.symbol})</div>
                                       <div className="text-center py-2">{bal.balance.toFixed(4)} {bal.symbol}</div>
                                       <div className="text-center py-2 flex items-center justify-center">
-                                        <span className="truncate font-mono mr-1">{bal.address}</span>
+                                        <span className="truncate font-mono text-xs mr-1">{bal.address}</span>
                                         <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={()=>{navigator.clipboard.writeText(bal.address);toast.success('Address copied');}}>
                                           <Copy className="h-3 w-3" />
                                         </Button>
@@ -1081,6 +1139,7 @@ export default function Home() {
                                               data: {
                                                 txHash: tx,
                                                 address,
+                                                chainId,
                                                 metadataId: created.result.$loki,
                                                 date: new Date().toISOString(),
                                               },
@@ -1093,7 +1152,8 @@ export default function Home() {
                                               collection: 'transactions',
                                               data: {
                                                 txHash: tx,
-                                                address,                                              
+                                                address,
+                                                chainId,
                                                 date: new Date().toISOString(),
                                               },
                                             }),
