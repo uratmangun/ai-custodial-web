@@ -3,15 +3,16 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
-import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
+import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract } from 'wagmi';
 import { formatEther } from 'viem'
+import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
 import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback} from "@/components/ui/avatar";
 import { Check, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
 
 export default function Home() {
   const router = useRouter();
@@ -48,6 +50,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<boolean[]>([]);
+  const [createCancelled, setCreateCancelled] = useState<boolean[]>([]);
+  const [txHashes, setTxHashes] = useState<string[]>([]);
   const [previewUrls, setPreviewUrls] = useState<Record<number,string>>({});
   const [descValues, setDescValues] = useState<Record<number,string>>({});
   const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
@@ -71,6 +75,7 @@ export default function Home() {
   const chain = config.chains.find((c) => c.id === chainId)
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
+  const { writeContractAsync } = useWriteContract(); 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -203,10 +208,11 @@ export default function Home() {
         })
         .filter(msg => msg.content != null);
       payloadMessages.push({ role: 'user', content: userMsg });
+      const selectedModel = comboboxValue || menuOptions[0].value;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payloadMessages,modelName:comboboxValue }),
+        body: JSON.stringify({ messages: payloadMessages, modelName: selectedModel }),
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -1020,36 +1026,84 @@ export default function Home() {
                             </>
                           ) : sd?.type === 'create_coin' ? (
                             createSuccess[idx] ? (
-                              <div className="p-2 bg-muted rounded-md text-green-600 font-medium">Congrats, your coin is created</div>
+                              <div className="p-2 bg-muted rounded-md text-green-600 font-medium">
+                                Congrats, your coin is created
+                                {txHashes[idx] && <div className="mt-1 text-sm break-all">Tx: {txHashes[idx]}</div>}
+                              </div>
+                            ) : createCancelled[idx] ? (
+                              <div className="p-2 bg-muted rounded-md text-red-600 font-medium">create coin cancelled</div>
                             ) : (
-                              <form
-                                className="space-y-2 p-2 bg-muted rounded-md"
-                                onSubmit={async e => {
-                                  e.preventDefault();
-                                  setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = false; return arr; });
-                                  setCreateLoading(true);
-                                  const formData = new FormData(e.currentTarget);
-                                  const payload = {
-                                    collection: 'metadata',
-                                    data: {
-                                      name: formData.get('name')?.toString() || '',
-                                      symbol: formData.get('symbol')?.toString() || '',
-                                      description: formData.get('description')?.toString() || '',
-                                      image: formData.get('imageUrl')?.toString() || '',
-                                      payoutAddress: formData.get('payoutAddress')?.toString() || '',
-                                      platformAddress: formData.get('platformAddress')?.toString() || '',
-                                    },
-                                  };
-                                  try {
-                                    const res = await fetch('/api/create-data', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify(payload),
-                                    });
-                                    if (res.ok) {
-                                      toast.success('Coin saved');
-                                      setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
-                                    } else toast.error('Failed to save coin');
+                                <form
+                                  className="space-y-2 p-2 bg-muted rounded-md"
+                                  onSubmit={async e => {
+                                    e.preventDefault();
+                                    setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = false; return arr; });
+                                    setCreateLoading(true);
+                                    const formData = new FormData(e.currentTarget);
+                                    const payload = {
+                                      collection: 'metadata',
+                                      data: {
+                                        name: formData.get('name')?.toString() || '',
+                                        symbol: formData.get('symbol')?.toString() || '',
+                                        description: formData.get('description')?.toString() || '',
+                                        image: formData.get('imageUrl')?.toString() || '',
+                                        payoutAddress: formData.get('payoutAddress')?.toString() as Address,
+                                        platformAddress: formData.get('platformAddress')?.toString() as Address,
+                                      },
+                                    };
+                                    try {
+                                      const res = await fetch('/api/create-data', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(payload),
+                                      });
+                                      const created = await res.json();
+                                      // console.log(created)
+                                      const coinParams = {
+                                            name: formData.get('name')?.toString() || '',
+                                            symbol: formData.get('symbol')?.toString() || '',
+                                            uri: `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${created.result.$loki}`,
+                                            payoutRecipient: formData.get('payoutAddress')?.toString() as Address,
+                                            platformReferrer: formData.get('platformAddress')?.toString() as Address,
+                                          };
+                                          const contractCallParams = await createCoinCall(coinParams);
+                                                                 
+                                          
+                                          const tx = await writeContractAsync({
+                                            ...contractCallParams,
+                                     
+                                          });
+                                          const res2 = await fetch('/api/create-data', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              collection: 'create_coins_transactions',
+                                              data: {
+                                                txHash: tx,
+                                                address,
+                                                metadataId: created.result.$loki,
+                                                date: new Date().toISOString(),
+                                              },
+                                            }),
+                                          });
+                                          const res3 = await fetch('/api/create-data', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              collection: 'transactions',
+                                              data: {
+                                                txHash: tx,
+                                                address,                                              
+                                                date: new Date().toISOString(),
+                                              },
+                                            }),
+                                          });
+                                          if(!res2.ok || !res3.ok){
+                                            toast.error('Network error saving create coin transaction');
+                                          
+                                          }
+                                          setTxHashes(prev => { const arr = [...prev]; arr[idx] = tx; return arr; });
+                                          setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
                                   } catch {
                                     toast.error('Network error saving coin');
                                   } finally {
@@ -1136,9 +1190,18 @@ export default function Home() {
                                   <label className="text-xs mb-1">Platform Address</label>
                                   <Input name="platformAddress" placeholder="Platform Address" defaultValue={address} />
                                 </div>
-                                <Button type="submit" disabled={createLoading}>
-                                  {createLoading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Create'}
-                                </Button>
+                                <div className="flex space-x-2">
+                                  <Button type="submit" disabled={createLoading}>
+                                    {createLoading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Create'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    disabled={createLoading}
+                                    onClick={() => setCreateCancelled(prev => { const arr = [...prev]; arr[idx] = true; return arr; })}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
                               </form>
                             )
                           ) : (
