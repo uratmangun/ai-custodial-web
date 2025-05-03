@@ -331,41 +331,13 @@ export default function Home() {
           identifier: addressParam, 
           count: 20,        
           after: nextPage, 
+          chainIds: [chainId]
         });
        
         const profile: any = response.data?.profile;
-        const coinBalances = profile.coinBalances?.edges || [];
         const pageInfo = profile.coinBalances?.pageInfo;
         const lines: string[] = [];
         let balanceData: any[] = [];
-        lines.push(addressParam
-          ? `Balance for ${addressParam === address ? 'your wallet' : addressParam}: ${balance} ETH`
-          : 'No address available');
-        if (chainId !== 8453) {
-          lines.push('Please switch to base chain to see full list of zora coin balances');
-        } else {
-          lines.push(`Found ${coinBalances.length} coin balances:`);
-          balanceData = coinBalances.map((item: any) => {
-            const bal = item.node;
-            return {
-              name: bal.coin?.name || 'Unknown',
-              symbol: bal.coin?.symbol || 'N/A',
-              balance: Number(bal.balance) / 1e18,
-              address: bal.coin?.address || 'N/A',
-            };
-          });
-          lines.push(`ETH Balance: ${balance} ETH`);
-          coinBalances.forEach((item: any, idx: number) => {
-            const bal = item.node;
-            lines.push(`${idx + 1}. ${bal.coin?.name || 'Unknown'} (${bal.coin?.symbol || 'N/A'})`);
-            lines.push(`   Balance: ${Number(bal.balance) / 1e18} ${bal.coin?.symbol || 'N/A'}`);
-            lines.push(`   Token address: ${bal.coin?.address || 'N/A'}`);
-            lines.push('-----------------------------------');
-          });
-          if (pageInfo?.endCursor) {
-            lines.push(`Next page cursor: ${pageInfo.endCursor}`);
-          }
-        }
         const display = lines.join('\n');
         setMessages(prev => [...prev, display]);
         setMessageRoles(prev => [...prev, 'tool']);
@@ -433,7 +405,7 @@ export default function Home() {
         try {
           response = await getCoin({
             address: coinAddress,
-            chain: chain === 'base' ? 8453 : 84532,
+            chain: chainId,
           });
         } catch (err) {
           toast.error('Failed to fetch coin details');
@@ -463,7 +435,7 @@ export default function Home() {
           const lines: string[] = [];
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
-          lines.push(`- **Chain:** ${chain}`);
+          lines.push(`- **Chain:** ${coin.chainId===84532?'Base Sepolia':'Base'}`);
           if (coin.description) lines.push(`- **Description:** ${coin.description}`);
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
@@ -747,8 +719,8 @@ export default function Home() {
               <TableBody>
                 {transactions.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{tx.txHash}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{tx.address}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{`${tx.txHash.substring(0, 6)}...${tx.txHash.substring(tx.txHash.length - 4)}`}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{`${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`}</TableCell>
                     <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
@@ -797,8 +769,8 @@ export default function Home() {
               <TableBody>
                 {createCoinTxs.map((tx, idx) => (
                   <TableRow key={idx}>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{tx.txHash}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{tx.address}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{`${tx.txHash.substring(0, 6)}...${tx.txHash.substring(tx.txHash.length - 4)}`}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{`${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`}</TableCell>
                     <TableCell>{tx.metadataId}</TableCell>
                     <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
                   </TableRow>
@@ -1187,7 +1159,8 @@ export default function Home() {
                                           }
                                           setTxHashes(prev => { const arr = [...prev]; arr[idx] = tx; return arr; });
                                           setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
-                                  } catch {
+                                  } catch(e) {
+                                    console.error(e);
                                     toast.error('Network error saving coin');
                                   } finally {
                                     setCreateLoading(false);

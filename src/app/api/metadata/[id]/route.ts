@@ -7,6 +7,7 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  
   // params is async in Next.js 15+, so await it
   const { id: idParam } = await params;
   const id = parseInt(idParam, 10);
@@ -15,6 +16,9 @@ export async function GET(
   if (!doc) {
     return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
   }
-  const { name, description,symbol, image } = doc;
-  return NextResponse.json({ name, description, symbol, image } );
+  const { name, description, image } = doc;
+  return NextResponse.json({ name, description, image,content:{
+    uri:image,
+    mime:'image/png'
+  }} );
 }
