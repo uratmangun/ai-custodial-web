@@ -4,10 +4,11 @@ import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
 import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract } from 'wagmi';
-import { formatEther } from 'viem'
+import { formatEther, parseEther, zeroAddress } from 'viem'
 import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
-import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
+import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments,simulateBuy,tradeCoinCall } from "@zoralabs/coins-sdk";
+import { coinABI } from "@zoralabs/coins";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,51 @@ export default function Home() {
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
   const { writeContractAsync } = useWriteContract(); 
+
+  // --- LOCAL SIMULATE BUY FUNCTION ---
+  async function localSimulateBuy({
+    target,
+    requestedOrderSize,
+    publicClient,
+    buyerAddress,
+    chain
+  }: {
+    target: Address;
+    requestedOrderSize: bigint;
+    publicClient: ReturnType<typeof getPublicClient>;
+    buyerAddress: Address;
+    chain: ReturnType<typeof useConfig>['chains'][0] | undefined;
+  }): Promise<{ orderSize: bigint; amountOut: bigint }> {
+    if (!publicClient || !chain?.contracts?.multicall3?.address) {
+      throw new Error("Public client or multicall address not available for simulation.")
+    }
+    const simulationResult = await publicClient.simulateContract({
+      address: target,
+      abi: coinABI,
+      functionName: "buy",
+      args: [
+        buyerAddress, // Use actual buyer address as recipient
+        requestedOrderSize,
+        0n, // minAmountOut
+        0n, // sqrtPriceLimitX96
+        zeroAddress, // Keep tradeReferrer as zeroAddress for now
+      ],
+      account: buyerAddress, // Specify the account for simulation context
+      value: requestedOrderSize, // Specify the ETH amount being sent for the buy
+      // We want to ensure that the buyer has enough ETH to buy in the simulation
+      stateOverride: [
+        {
+          address: buyerAddress, // Target the actual buyer for the balance override
+          balance: parseEther("10000000"), // Large balance for simulation
+        },
+      ],
+    });
+    const orderSize = simulationResult.result[0];
+    const amountOut = simulationResult.result[1];
+    return { orderSize, amountOut };
+  }
+  // --- END LOCAL SIMULATE BUY FUNCTION ---
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -167,7 +213,7 @@ export default function Home() {
       setPaginationLoadingIdx(messageIndex);
       const toastId = toast.loading(`Loading comments page ${newPage}...`);
       try {
-        const response = await getCoinComments({ address: sd.coinAddress, chain: sd.chain, after: targetCursor });
+        const response = await getCoinComments({ address: sd.coinAddress, chain: sd.chain, after: targetCursor ?? undefined });
         const comments = response.data?.zora20Token?.zoraComments?.edges.map((edge: any) => edge.node) || [];
         const pageInfo2 = response.data?.zora20Token?.zoraComments?.pageInfo;
         const commentData2 = comments.map((c: any) => {
@@ -232,7 +278,7 @@ export default function Home() {
       const { content: aiContent, tool_calls } = await res.json();
       setMessages(prev => [...prev, aiContent]);
       setMessageRoles(prev => [...prev, 'assistant']);
-      setMessageToolCallIds(prev => [...prev, message.tool_call_id || '']);
+      setMessageToolCallIds(prev => [...prev, tool_calls?.[0]?.id || '']);
       setIsUserMessage(prev => [...prev, false]);
       setUsernames(prev => [...prev, 'AI']);
       setDates(prev => [...prev, formatDate(new Date())]);
@@ -551,6 +597,41 @@ export default function Home() {
           toast.error(error instanceof Error ? error.message : 'Failed to check coin address');
         }
         setLoadingToolCalls(prev => [...prev, []]);
+        return;
+      } else if (toolName === 'simulate_buy') {
+        try {
+          const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+          const { address: coinAddress, amount } = args;
+          if (!address) {
+             toast.error("Please connect wallet first to simulate buy");
+             return;
+          }
+          // Ensure amount is a string before parsing
+          const amountString = typeof amount === 'number' ? amount.toString() : amount;
+          const simulation = await localSimulateBuy({
+            target: coinAddress as Address,
+            requestedOrderSize: parseEther(amountString),
+            publicClient,
+            buyerAddress: address, // Pass the connected address
+            chain: chain // Pass the current chain object
+          });
+
+          const msg = `Simulation: Buy ${amount} ETH worth of ${coinAddress} will get you approximately ${formatEther(simulation.amountOut)} tokens. (This is just a simulation)`;
+          setMessages(prev => [...prev, msg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, null]);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to simulate buy');
+        } finally {
+          setLoadingToolCalls(prev => [...prev, []]);
+        }
         return;
       }
     } catch (err) {
@@ -1099,7 +1180,6 @@ export default function Home() {
                                         name: formData.get('name')?.toString() || '',
                                         symbol: formData.get('symbol')?.toString() || '',
                                         description: formData.get('description')?.toString() || '',
-                                        image: formData.get('imageUrl')?.toString() || '',
                                         payoutAddress: formData.get('payoutAddress')?.toString() as Address,
                                         platformAddress: formData.get('platformAddress')?.toString() as Address,
                                       },
@@ -1111,6 +1191,36 @@ export default function Home() {
                                         body: JSON.stringify(payload),
                                       });
                                       const created = await res.json();
+                                      if (!res.ok || !created.success) {
+                                        toast.error(created.error || 'Failed to create metadata');
+                                        throw new Error('Failed to create metadata');
+                                      }
+
+                                      // Save the image using the metadata ID as the name
+                                      const imageUrl = formData.get('imageUrl')?.toString() || '';
+                                      if (imageUrl.startsWith('data:image')) {
+                                        try {
+                                          const matches = imageUrl.match(/^data:(image\/\w+);base64,(.*)$/);
+                                          const base64Data = matches ? matches[2] : '';
+                                          if (base64Data) {
+                                            const saveImageRes = await fetch('/api/save-image', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ name: created.result.$loki, base64: base64Data }),
+                                            });
+                                            if (!saveImageRes.ok) {
+                                              const saveErr = await saveImageRes.json();
+                                              toast.error(`Failed to save image: ${saveErr.error || 'Unknown error'}`);
+                                              // Decide if you want to throw error here or just warn
+                                              console.error('Failed to save image:', saveErr);
+                                            }
+                                          }
+                                        } catch (imgSaveError) {
+                                          toast.error('Error saving image');
+                                          console.error('Error saving image:', imgSaveError);
+                                        }
+                                      }
+
                                       // console.log(created)
                                       const coinParams = {
                                             name: formData.get('name')?.toString() || '',

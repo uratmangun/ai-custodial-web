@@ -253,6 +253,28 @@ export async function POST(request: Request) {
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "simulate_buy",
+          description: "Simulate buying a coin with a specified amount.",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "The address of the coin to simulate buying.",
+              },
+              amount: {
+                type: "number", // Assuming amount is a number, change if it should be string
+                description: "The amount (e.g., in ETH or USD) to simulate buying with.",
+              },
+            },
+            required: ["address", "amount"],
+            additionalProperties: false,
+          },
+        },
+      },
     ];
     const systemMessage = {
       role: "system",
@@ -267,8 +289,9 @@ Available tool calls:
   - get_coin_comment: Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination.
   - create_coin: Create a new coin with name, symbol, description, and image URL.
   - check_coin_address: Check a coin by its transaction address.
+  - simulate_buy: Simulate buying a coin with a specified amount.
 
-If a question falls outside these tools, respond "Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment, create_coin, check_coin_address"`,
+If a question falls outside these tools, respond "Available tool calls: switch_chain, current_chain, check_address, check_balance, get_coin_top_gainers, check_coin, get_coin_comment, create_coin, check_coin_address, simulate_buy"`,
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
