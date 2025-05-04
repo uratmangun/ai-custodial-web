@@ -9,24 +9,33 @@ https://zora-coin.uratmangun.ovh/
 https://youtu.be/XgQppscv380
 
 # List of tools
-- `switch_chain`: Switch between Ethereum blockchains. Default is `baseSepolia`.
+- `switch_chain`: Switch between Ethereum blockchains. Default is baseSepolia. Parameters:
+  - `chain` ("base" | "baseSepolia"): The chain to switch to (required).
 - `current_chain`: Get the current active blockchain chain.
 - `check_address`: Get the connected wallet address.
-- `check_balance`: Get the balance of the connected wallet or specified ERC-20 token. Optional parameters:
-  - `address` (string): user or token contract address.
-  - `next_page` (string): pagination cursor.
-- `get_coin_top_gainers`: Get the top gaining coins on Zora. Optional parameter:
-  - `next_page` (string): pagination cursor.
-- `check_coin`: Get details for a single coin by its address. Optional parameter:
-  - `chainId` ("base" | "baseSepolia"): chain to query (default is `base`).
-- `get_coin_comment`: Get comments for a single coin by its address. Optional parameters:
-  - `chain` ("base" | "baseSepolia"): chain to query (default is `base`).
-  - `next_page` (string): pagination cursor.
+- `check_balance`: Get the balance of the connected wallet or an ERC-20 token if address is provided. Optional parameters:
+  - `address` (string): Optional user or token contract address.
+  - `next_page` (string): Optional pagination cursor.
+- `get_coin_top_gainers`: Get the top gaining coins on zora coins. Optional parameter:
+  - `next_page` (string): Optional pagination cursor.
+- `check_coin`: Get details for a single coin by address. Optionally specify chainId (base or baseSepolia, default is base). Parameters:
+  - `address` (string): Coin contract address (required).
+  - `chainId` ("base" | "baseSepolia"): Chain to query (optional, defaults to base).
+- `get_coin_comment`: Get comments for a single coin by address. Optionally specify chain (base or baseSepolia, default is base) and next_page for pagination. Parameters:
+  - `address` (string): Coin contract address (required).
+  - `chain` ("base" | "baseSepolia"): Chain to query (optional, defaults to base).
+  - `next_page` (string): Optional pagination cursor.
 - `create_coin`: Create a new coin with name, symbol, description, and image URL. Parameters:
-  - `name` (string): Name of the coin.
-  - `symbol` (string): Symbol of the coin.
+  - `name` (string): Name of the coin (required).
+  - `symbol` (string): Symbol of the coin (required).
   - `description` (string): Description of the coin.
   - `imageUrl` (string): Image URL for the coin.
+- `check_coin_address`: Check a coin by its transaction address. Parameters:
+  - `transaction` (string): Transaction string for the coin address (required).
+- `trade`: Execute a trade (buy or sell) for a specified coin address and amount. Parameters:
+  - `direction` ("buy" | "sell"): The direction of the trade (required).
+  - `address` (string): The address of the coin to trade (required).
+  - `amount` (number): The amount to trade (required).
 
 # How to run with docker and forward to cloudflare tunnel hosted domain
 

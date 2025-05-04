@@ -24,7 +24,7 @@ export default function Home() {
             AI Custodial Wallet 
           </h1>
           <p className="text-lg sm:text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto mt-4">
-            Experience the future of blockchain trading with our AI-powered platform. Simulate trades, manage assets, and explore the Zora coin ecosystem with ease.
+            Experience the future of blockchain trading with our AI-powered platform. Do trades, manage assets, and explore the Zora coin ecosystem with ease.
           </p>
           <div className="flex flex-col gap-4 mt-8 items-center">
             <div className="flex flex-row gap-4">

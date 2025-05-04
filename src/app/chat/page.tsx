@@ -405,8 +405,7 @@ export default function Home() {
       } else if (toolName === 'check_coin') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const coinAddress = args.address;
-        const chain = args.chainId || 'base';
-        const nextPage = args.next_page;
+        
         let response;
         try {
           response = await getCoin({
@@ -425,7 +424,8 @@ export default function Home() {
         
        
         const coin = response.data?.zora20Token;
-       
+         //@ts-ignore
+        const tokenUri = coin?.tokenUri;
         if (!coin) {
           setMessages(prev => [...prev, `Coin not found for address: ${coinAddress}`]);
           setMessageRoles(prev => [...prev, 'assistant']);
@@ -442,7 +442,27 @@ export default function Home() {
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
           lines.push(`- **Chain:** ${coin.chainId===84532?'Base Sepolia':'Base'}`);
-          if (coin.description) lines.push(`- **Description:** ${coin.description}`);
+
+          let displayDescription = coin.description; // Default description
+          if (typeof tokenUri === 'string' && tokenUri) {
+            try {
+              const uriResponse = await fetch(tokenUri);
+              if (uriResponse.ok) {
+                const uriData = await uriResponse.json();
+                if (uriData?.description) {
+                  displayDescription = uriData.description; // Use description from URI
+                } else {
+                  console.warn(`Fetched token URI data for ${coin.address} but it lacks a description.`);
+                }
+              } else {
+                console.error(`Failed to fetch token URI ${tokenUri}: ${uriResponse.statusText}`);
+              }
+            } catch (fetchError) {
+              console.error(`Error fetching or parsing token URI ${tokenUri}:`, fetchError);
+            }
+          }
+
+          if (displayDescription) lines.push(`- **Description:** ${displayDescription}`);
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
           lines.push(`- **24h Volume:** ${coin.volume24h ?? 'N/A'}`);
@@ -450,7 +470,7 @@ export default function Home() {
           lines.push(`- **Created At:** ${coin.createdAt ?? 'N/A'}`);
           lines.push(`- **Unique Holders:** ${coin.uniqueHolders ?? 'N/A'}`);
           if (coin.mediaContent?.previewImage) {
-            lines.push(`![Preview Image](${coin.mediaContent.previewImage.small})`);
+            lines.push(`![Preview Image](${coin.mediaContent.originalUri})`);
           }
           setMessages(prev => [...prev, lines.join('\n')]);
           setMessageRoles(prev => [...prev, 'assistant']);
