@@ -6,7 +6,7 @@ An AI-powered chat interface built with Next.js that lets you query and interact
 https://zora-coin.uratmangun.ovh/
 
 # Video demo
-https://youtu.be/XgQppscv380
+https://www.youtube.com/watch?v=MsGDmadUUA4
 
 # List of tools
 - `switch_chain`: Switch between Ethereum blockchains. Default is baseSepolia. Parameters:
