@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
 import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract } from 'wagmi';
-import { formatEther, parseEther, zeroAddress } from 'viem'
+import { formatEther, parseEther, zeroAddress, parseUnits, formatUnits, keccak256, encodePacked, toHex, maxUint256 } from 'viem'
 import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
 import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments,simulateBuy,tradeCoinCall } from "@zoralabs/coins-sdk";
@@ -88,49 +88,8 @@ export default function Home() {
   const { switchChain } = useSwitchChain()
   const { writeContractAsync } = useWriteContract(); 
 
-  // --- LOCAL SIMULATE BUY FUNCTION ---
-  async function localSimulateBuy({
-    target,
-    requestedOrderSize,
-    publicClient,
-    buyerAddress,
-    chain
-  }: {
-    target: Address;
-    requestedOrderSize: bigint;
-    publicClient: ReturnType<typeof getPublicClient>;
-    buyerAddress: Address;
-    chain: ReturnType<typeof useConfig>['chains'][0] | undefined;
-  }): Promise<{ orderSize: bigint; amountOut: bigint }> {
-    if (!publicClient || !chain?.contracts?.multicall3?.address) {
-      throw new Error("Public client or multicall address not available for simulation.")
-    }
-    const simulationResult = await publicClient.simulateContract({
-      address: target,
-      abi: coinABI,
-      functionName: "buy",
-      args: [
-        buyerAddress, // Use actual buyer address as recipient
-        requestedOrderSize,
-        0n, // minAmountOut
-        0n, // sqrtPriceLimitX96
-        zeroAddress, // Keep tradeReferrer as zeroAddress for now
-      ],
-      account: buyerAddress, // Specify the account for simulation context
-      value: requestedOrderSize, // Specify the ETH amount being sent for the buy
-      // We want to ensure that the buyer has enough ETH to buy in the simulation
-      stateOverride: [
-        {
-          address: buyerAddress, // Target the actual buyer for the balance override
-          balance: parseEther("10000000"), // Large balance for simulation
-        },
-      ],
-    });
-    const orderSize = simulationResult.result[0];
-    const amountOut = simulationResult.result[1];
-    return { orderSize, amountOut };
-  }
-  // --- END LOCAL SIMULATE BUY FUNCTION ---
+ 
+ 
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -384,6 +343,7 @@ export default function Home() {
         const pageInfo = profile.coinBalances?.pageInfo;
         const lines: string[] = [];
         let balanceData: any[] = [];
+        balanceData=response.data?.profile?.coinBalances?.edges.map((edge: any) => edge.node) || [];
         const display = lines.join('\n');
         setMessages(prev => [...prev, display]);
         setMessageRoles(prev => [...prev, 'tool']);
@@ -598,28 +558,65 @@ export default function Home() {
         }
         setLoadingToolCalls(prev => [...prev, []]);
         return;
-      } else if (toolName === 'simulate_buy') {
-        try {
-          const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-          const { address: coinAddress, amount } = args;
-          if (!address) {
-             toast.error("Please connect wallet first to simulate buy");
-             return;
-          }
-          // Ensure amount is a string before parsing
-          const amountString = typeof amount === 'number' ? amount.toString() : amount;
-          const simulation = await localSimulateBuy({
-            target: coinAddress as Address,
-            requestedOrderSize: parseEther(amountString),
-            publicClient,
-            buyerAddress: address, // Pass the connected address
-            chain: chain // Pass the current chain object
-          });
+      }  else if (toolName === 'trade') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const direction = args.direction;
+        const coinAddress = args.address;
+        const amount = args.amount;
 
-          const msg = `Simulation: Buy ${amount} ETH worth of ${coinAddress} will get you approximately ${formatEther(simulation.amountOut)} tokens. (This is just a simulation)`;
-          setMessages(prev => [...prev, msg]);
+        try {
+          let contractCallParams;
+          let tx: string | undefined;
+          let aiMsg: string;
+
+          if (direction === 'buy') {
+            const tradeParams = {
+              direction,
+              target: coinAddress as Address,
+              args: {
+                recipient: address as Address,
+                orderSize: parseEther(String(amount)), // Buy is with ETH, so parseEther is fine
+                minAmountOut: 0n,
+              }
+            };
+            contractCallParams = tradeCoinCall(tradeParams);
+            tx = await writeContractAsync({
+              ...contractCallParams,
+              gas: 23000n // Hardcoded gas limit based on error
+            });
+            aiMsg = `Executed buy: ${amount} ETH of ${coinAddress}. TX: ${tx}`;
+
+          } else if (direction === 'sell') {
+           
+
+            const tradeParams = {
+              direction,
+              target: coinAddress as Address,
+              args: {
+                recipient: address as Address,
+                orderSize: parseEther(String(amount)), // Use fetched decimals
+                minAmountOut: parseEther('0.1'),
+              }
+            };
+            contractCallParams = tradeCoinCall(tradeParams);
+            tx = await writeContractAsync({
+              ...contractCallParams,
+              gas: 23000n // Hardcoded gas limit based on error
+            });
+            aiMsg = `Executed sell: ${amount} of ${coinAddress}. TX: ${tx}`;
+          } else {
+            toast.error("Invalid trade direction.");
+            setLoadingToolCalls(prev => {
+              const copy = [...prev];
+              if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
+              return copy;
+            });
+            return;
+          }
+
+          setMessages(prev => [...prev, aiMsg]);
           setMessageRoles(prev => [...prev, 'tool']);
-          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setMessageToolCallIds(prev => [...prev, tc.id || '']);
           setIsUserMessage(prev => [...prev, false]);
           setUsernames(prev => [...prev, 'AI']);
           setDates(prev => [...prev, formatDate(new Date())]);
@@ -627,15 +624,12 @@ export default function Home() {
           setToolCalls(prev => [...prev, []]);
           setRespondedToolCalls(prev => [...prev, []]);
           setMessageStructuredData(prev => [...prev, null]);
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to simulate buy');
-        } finally {
-          setLoadingToolCalls(prev => [...prev, []]);
+        } catch (err) {
+          toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
-        return;
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error("Error handling tool call:", error);
     } finally {
       setLoadingToolCalls(prev => {
         const copy = [...prev];
@@ -760,7 +754,7 @@ export default function Home() {
   return (
     <main className="flex min-h-screen items-start justify-center gap-8 p-6 bg-muted">
       <div className="flex flex-col gap-6 h-[80vh]">
-        <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
+        {/* <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
           <CardHeader className="flex flex-col p-4 border-b">
             <CardTitle>transaction history</CardTitle>
           </CardHeader>
@@ -808,7 +802,7 @@ export default function Home() {
               </TableBody>
             </Table>
           </CardContent>
-        </Card>
+        </Card> */}
         <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
           <CardHeader className="flex flex-col p-4 border-b">
             <CardTitle>list of token you created</CardTitle>
@@ -1145,11 +1139,11 @@ export default function Home() {
                                 {sd.data && sd.data.length > 0 ? (
                                   sd.data.map((bal:any, i:number)=>(
                                     <div key={i} className="grid grid-cols-3 gap-2 text-sm items-center border-b border-muted py-1">
-                                      <div className="text-center py-2 truncate">{bal.name} ({bal.symbol})</div>
-                                      <div className="text-center py-2">{bal.balance.toFixed(4)} {bal.symbol}</div>
+                                      <div className="text-center py-2 truncate">{bal.coin.name} ({bal.coin.symbol})</div>
+                                      <div className="text-center py-2">{parseFloat(formatUnits(BigInt(bal.balance), bal.coin.decimals)).toFixed(4)} {bal.coin.symbol}</div>
                                       <div className="text-center py-2 flex items-center justify-center">
-                                        <span className="truncate font-mono text-xs mr-1">{bal.address}</span>
-                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={()=>{navigator.clipboard.writeText(bal.address);toast.success('Address copied');}}>
+                                        <span className="truncate font-mono text-xs mr-1">{bal.coin.address}</span>
+                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={()=>{navigator.clipboard.writeText(bal.coin.address);toast.success('Address copied');}}>
                                           <Copy className="h-3 w-3" />
                                         </Button>
                                       </div>

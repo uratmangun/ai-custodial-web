@@ -1,32 +1,12 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useRouter } from 'next/navigation';
-import { useAccount,useChainId, useConfig, useSwitchChain } from 'wagmi';
-import { formatEther } from 'viem'
-import { getPublicClient } from 'wagmi/actions'
-import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments } from "@zoralabs/coins-sdk";
-import { toast } from "sonner";
-export default function Home() {
-  const router = useRouter();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedSquare, setSelectedSquare] = useState<{ row: number; col: number } | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [messageRoles, setMessageRoles] = useState<('user'|'assistant'|'tool')[]>([]);
-  const [messageToolCallIds, setMessageToolCallIds] = useState<string[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [isUserMessage, setIsUserMessage] = useState<boolean[]>([]);
-  const [usernames, setUsernames] = useState<string[]>([]);
-  const [timestamps, setTimestamps] = useState<string[]>([]);
-  const [dates, setDates] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [toolCalls, setToolCalls] = useState<any[][]>([]);
-  const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
-  const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
 
+export default function Home() {
+ 
 
  
 
@@ -41,7 +21,7 @@ export default function Home() {
         >
           <p className="text-sm uppercase text-gray-700 opacity-75 mb-3">Welcome to</p>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900">
-            AI Custodial Wallet & AI Zora Coin Trade Simulator
+            AI Custodial Wallet 
           </h1>
           <p className="text-lg sm:text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto mt-4">
             Experience the future of blockchain trading with our AI-powered platform. Simulate trades, manage assets, and explore the Zora coin ecosystem with ease.
