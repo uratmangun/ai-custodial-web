@@ -68,7 +68,7 @@ The tunnel will route traffic from your domain to the containerized application 
 
 # Run the container
 
-docker run -d --restart always --env-file .env --name ai-custodial-web --network my-net ai-custodial-web
+docker run -d --restart always --env-file .env -v /home/uratmangun/CascadeProjects/ai-custodial-web/data:/app/data --name ai-custodial-web --network my-net ai-custodial-web
 
 # Stop the container
 docker stop ai-custodial-web
