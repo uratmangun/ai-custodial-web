@@ -11,6 +11,9 @@ importers:
       '@coinbase/onchainkit':
         specifier: ^0.38.10
         version: 0.38.10(@tanstack/query-core@5.74.7)(@types/react@19.1.2)(bufferutil@4.0.9)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@19.1.0))(utf-8-validate@5.0.10)(zod@3.24.3)
+      '@farcaster/frame-sdk':
+        specifier: ^0.0.38
+        version: 0.0.38(typescript@5.8.3)(zod@3.24.3)
       '@radix-ui/react-avatar':
         specifier: ^1.1.7
         version: 1.1.7(@types/react-dom@19.1.2(@types/react@19.1.2))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -261,8 +264,14 @@ packages:
   '@farcaster/frame-core@0.0.26':
     resolution: {integrity: sha512-DqBsi+lz7WBlqcxJfYv8ZiU8+Th4Y49euq13kCxVOn6YU/rKR7Wq6E6N1bgeb625wyoIrlC3NnPRXf5SoRxNhA==}
 
+  '@farcaster/frame-core@0.0.34':
+    resolution: {integrity: sha512-hohopBJo9TH5C4M+3WzcvpWfuJ6bMXyqSx4gP1AvRT3F3MxHf0qCakicV4wiR3SM9FfPNcCjUcK3wSM+WzsDjA==}
+
   '@farcaster/frame-sdk@0.0.28':
     resolution: {integrity: sha512-raxJkwy9oNDTodyfcY8DNvQNkt/9wdWGIqGnXW70biBPfVxfdG9WAqy1Bm552KSynd0+hGzcrQVwkMNzvpSZBg==}
+
+  '@farcaster/frame-sdk@0.0.38':
+    resolution: {integrity: sha512-CGrxO7Mv+Bs7QexEqkE5YbRw7eAiUwOefU1eqbHZ5JhjGlSHaCfIq3Lm8MMcWqBb7CyDVEYFDQkUWw0hjlrzTQ==}
 
   '@farcaster/frame-wagmi-connector@0.0.16':
     resolution: {integrity: sha512-9ymoD49f8mT7itHdZnnXWqt6MQKqaxG/1QzOr+0MBnSPL+BTBpbKFGCUMbhLdEE2XDool139oM5uMxlPEOOP2A==}
@@ -4465,9 +4474,26 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
+  '@farcaster/frame-core@0.0.34(typescript@5.8.3)':
+    dependencies:
+      ox: 0.4.4(typescript@5.8.3)(zod@3.24.3)
+      zod: 3.24.3
+    transitivePeerDependencies:
+      - typescript
+
   '@farcaster/frame-sdk@0.0.28(typescript@5.8.3)(zod@3.24.3)':
     dependencies:
       '@farcaster/frame-core': 0.0.26(typescript@5.8.3)
+      comlink: 4.4.2
+      eventemitter3: 5.0.1
+      ox: 0.4.4(typescript@5.8.3)(zod@3.24.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
+
+  '@farcaster/frame-sdk@0.0.38(typescript@5.8.3)(zod@3.24.3)':
+    dependencies:
+      '@farcaster/frame-core': 0.0.34(typescript@5.8.3)
       comlink: 4.4.2
       eventemitter3: 5.0.1
       ox: 0.4.4(typescript@5.8.3)(zod@3.24.3)

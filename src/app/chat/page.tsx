@@ -42,6 +42,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { getTransactionReceipt } from '@wagmi/core';
+import { sdk } from '@farcaster/frame-sdk'
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -92,6 +93,7 @@ export default function Home() {
  
 
   useEffect(() => {
+    sdk.actions.ready();
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   const truncateMiddle = (str: string, start = 6, end = 4) => {
@@ -772,109 +774,7 @@ export default function Home() {
   ];
 
   return (
-    <main className="flex min-h-screen items-start justify-center gap-8 p-6 bg-muted">
-      <div className="flex flex-col gap-6 h-[80vh]">
-        {/* <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
-          <CardHeader className="flex flex-col p-4 border-b">
-            <CardTitle>transaction history</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 overflow-y-auto">
-            <div className="mb-4 flex items-center gap-2">
-              <label htmlFor="chain-select" className="block text-sm font-medium mb-2">
-                Chain
-              </label>
-              <Select value={selectedChain} onValueChange={setSelectedChain}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="8453">Base</SelectItem>
-                  <SelectItem value="84532">Base Sepolia</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button size="sm" variant="outline" title="reload data" onClick={async () => {
-                try {
-                  const res = await fetch(`/api/read-data?collection=transactions&chainId=${selectedChain}&address=${address}`);
-                  const json = await res.json();
-                  if (json.success) setTransactions(json.results);
-                  else toast.error(json.error || 'Failed to load');
-                } catch (err) { toast.error('Error fetching'); }
-              }}>
-                <RefreshCcw className="h-4 w-4" />
-              </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>txHash</TableHead>
-                  <TableHead>address</TableHead>
-                  <TableHead>date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.map((tx, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{`${tx.txHash.substring(0, 6)}...${tx.txHash.substring(tx.txHash.length - 4)}`}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{`${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`}</TableCell>
-                    <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card> */}
-        <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
-          <CardHeader className="flex flex-col p-4 border-b">
-            <CardTitle>list of token you created</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 overflow-y-auto">
-            <div className="mb-4 flex items-center gap-2">
-              <label htmlFor="chain-select" className="block text-sm font-medium mb-2">
-                Chain
-              </label>
-              <Select value={selectedChain} onValueChange={setSelectedChain}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="8453">Base</SelectItem>
-                  <SelectItem value="84532">Base Sepolia</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button size="sm" variant="outline" title="reload data" onClick={async () => {
-                try {
-                  const res = await fetch(`/api/read-data?collection=create_coins_transactions&chainId=${selectedChain}&address=${address}`);
-                  const json = await res.json();
-                  if (json.success) setCreateCoinTxs(json.results);
-                  else toast.error(json.error || 'Failed to load');
-                } catch (err) { toast.error('Error fetching'); }
-              }}>
-                <RefreshCcw className="h-4 w-4" />
-              </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>txHash</TableHead>
-                  <TableHead>address</TableHead>
-                  <TableHead>metadataId</TableHead>
-                  <TableHead>date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {createCoinTxs.map((tx, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{`${tx.txHash.substring(0, 6)}...${tx.txHash.substring(tx.txHash.length - 4)}`}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{`${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`}</TableCell>
-                    <TableCell>{tx.metadataId}</TableCell>
-                    <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+    <main className="flex flex-col md:flex-row min-h-screen items-start justify-center gap-8 p-6 bg-muted">
       <Card className="w-full max-w-3xl h-[80vh] flex flex-col">
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
@@ -888,11 +788,13 @@ export default function Home() {
                   variant="outline"
                   role="combobox"
                   aria-expanded={comboboxOpen}
-                  className="w-[350px] justify-between"
+                  className="w-full sm:w-[350px] justify-between"
                 >
-                  {comboboxValue
-                    ? menuOptions.find(o => o.value === comboboxValue)?.label
-                    : menuOptions[0]?.label}
+                  <span className="flex-1 truncate">
+                    {comboboxValue
+                      ? menuOptions.find(o => o.value === comboboxValue)?.label
+                      : menuOptions[0]?.label}
+                  </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -1453,6 +1355,59 @@ export default function Home() {
           </div>
         </CardFooter>
       </Card>
+      <div className="flex flex-col gap-6 h-[80vh]">
+        <Card className="w-full max-w-md flex flex-col flex-1 overflow-hidden">
+          <CardHeader className="flex flex-col p-4 border-b">
+            <CardTitle>list of token you created</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 overflow-y-auto">
+            <div className="mb-4 flex items-center gap-2">
+              <label htmlFor="chain-select" className="block text-sm font-medium mb-2">
+                Chain
+              </label>
+              <Select value={selectedChain} onValueChange={setSelectedChain}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select chain" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="8453">Base</SelectItem>
+                  <SelectItem value="84532">Base Sepolia</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" title="reload data" onClick={async () => {
+                try {
+                  const res = await fetch(`/api/read-data?collection=create_coins_transactions&chainId=${selectedChain}&address=${address}`);
+                  const json = await res.json();
+                  if (json.success) setCreateCoinTxs(json.results);
+                  else toast.error(json.error || 'Failed to load');
+                } catch (err) { toast.error('Error fetching'); }
+              }}>
+                <RefreshCcw className="h-4 w-4" />
+              </Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>txHash</TableHead>
+                  <TableHead>address</TableHead>
+                  <TableHead>metadataId</TableHead>
+                  <TableHead>date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {createCoinTxs.map((tx, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.txHash); toast.success('Transaction hash copied to clipboard'); }}>{`${tx.txHash.substring(0, 6)}...${tx.txHash.substring(tx.txHash.length - 4)}`}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => { navigator.clipboard.writeText(tx.address); toast.success('Address copied to clipboard'); }}>{`${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`}</TableCell>
+                    <TableCell>{tx.metadataId}</TableCell>
+                    <TableCell>{new Date(tx.date).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

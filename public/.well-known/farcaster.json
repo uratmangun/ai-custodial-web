@@ -1,0 +1,30 @@
+{
+    "accountAssociation": {
+      "header": "eyJmaWQiOjE4NTgxLCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4Qjc4ZDRDNzcxNmZhNjNENEU2ZTIyNTkzMTUyNThhRkNENTdkMWE4NyJ9",
+      "payload": "eyJkb21haW4iOiJ3d3cud2Vwb25kZXIuaW8ifQ",
+      "signature": "MHg4ZGFjOTJhNTQ5ZWQ0OWVmZDNhMzg4NjFjMGIwZWUxNzE1OGY0NGM3NWNhMTQwZDAzYWJkNjMxYTcyYWMwN2QwMzY3NzRjYWU2MDU0MmZhYjZmYWMxMTg2NjVmZTlmZDcxZDcxOTQyYTU5MmM5ZGQwNTAwZGZlNTE3Mzg1MTU1NDFi"
+    },
+    "frame": {
+      "version": "1",
+      "iconUrl": "https://www.weponder.io/img/logo-sm-bg.jpg",
+      "name": "Ponder",
+      "subtitle": "Predict what the crowd thinks",
+      "description": "Ponder is a daily game of social intuition. Join your friends to:\n- Predict what the majority thinks\n- Place your entry\n- Win real rewards for reading the crowd",
+      "screenshotUrls": [],
+      "primaryCategory": "games",
+      "tags": [
+        "poll",
+        "predict",
+        "earn",
+        "win",
+        "poly"
+      ],
+      "tagline": "Predict what the crowd thinks",
+      "ogTitle": "Ponder - Predict The Crowd",
+      "ogDescription": "Join daily polls. Predict what people think. Win real rewards.",
+      "splashImageUrl": "https://www.weponder.io/logo.gif",
+      "splashBackgroundColor": "#0A131F",
+      "homeUrl": "https://www.weponder.io/apps/social-predictions/predictions",
+      "webhookUrl": "https://api.neynar.com/f/app/e856ad40-4a9e-4c26-b253-dd754e1e3157/event"
+    }
+  }
