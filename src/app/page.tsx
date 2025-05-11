@@ -21,10 +21,10 @@ export default function Home() {
         >
           <p className="text-sm uppercase text-gray-700 opacity-75 mb-3">Welcome to</p>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900">
-            AI Custodial Wallet 
+            Coin chat
           </h1>
           <p className="text-lg sm:text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto mt-4">
-            Experience the future of blockchain trading with our AI-powered platform. Do trades, manage assets, and explore the Zora coin ecosystem with ease.
+            Chat with ai or anyone and trade zora coins
           </p>
           <div className="flex flex-col gap-4 mt-8 items-center">
             <div className="flex flex-row gap-4">

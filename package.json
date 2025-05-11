@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clean": "rm -rf .next node_modules",
+    "format": "prettier --write src"
   },
   "dependencies": {
     "@coinbase/onchainkit": "^0.38.10",
@@ -21,7 +23,7 @@
     "@radix-ui/react-slot": "^1.2.0",
     "@rainbow-me/rainbowkit": "^2.2.4",
     "@tanstack/react-query": "^5.74.7",
-    "@wagmi/core": "^2.17.1",
+    "@wagmi/core": "latest",
     "@zoralabs/coins": "^0.7.1",
     "@zoralabs/coins-sdk": "^0.0.8",
     "class-variance-authority": "^0.7.1",
@@ -44,8 +46,8 @@
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
     "together-ai": "^0.15.0",
-    "viem": "^2.27.0",
-    "wagmi": "^2.14.16"
+    "viem": "latest",
+    "wagmi": "latest"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -59,5 +61,10 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.2.8",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "overrides": {
+      "@coinbase/wallet-sdk": "canary"
+    }
   }
 }
