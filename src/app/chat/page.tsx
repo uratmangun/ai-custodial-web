@@ -43,6 +43,65 @@ import {
 } from "@/components/ui/select";
 import { getTransactionReceipt } from '@wagmi/core';
 import { sdk } from '@farcaster/frame-sdk'
+
+const menuOptions = [
+  {
+    value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+    label: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+    badge: "together.xyz",
+  },
+  {
+    value: "mistralai/mistral-small-3.1-24b-instruct:free",
+    label: "mistralai/mistral-small-3.1-24b-instruct:free",
+    badge: "openrouter.ai",
+  },
+  {
+    value: "learnlm-2.0-flash-experimental",
+    label: "learnlm-2.0-flash-experimental",
+    badge: "gemini",
+  },
+  {
+    value: "learnlm-1.5-pro-experimental",
+    label: "learnlm-1.5-pro-experimental",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-1.5-flash-8b",
+    label: "gemini-1.5-flash-8b",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-1.5-flash",
+    label: "gemini-1.5-flash",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-1.5-pro",
+    label: "gemini-1.5-pro",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-2.0-flash-lite",
+    label: "gemini-2.0-flash-lite",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-2.0-flash",
+    label: "gemini-2.0-flash",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-2.5-flash-preview-04-17",
+    label: "gemini-2.5-flash-preview-04-17",
+    badge: "gemini",
+  },
+  {
+    value: "gemini-2.5-pro-preview-03-25",
+    label: "gemini-2.5-pro-preview-03-25",
+    badge: "gemini",
+  }
+];
+
 export default function Home() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -225,7 +284,13 @@ export default function Home() {
         })
         .filter(msg => msg.content != null);
       payloadMessages.push({ role: 'user', content: userMsg });
-      const selectedModel = comboboxValue || menuOptions[0].value;
+
+      // More robust selectedModel determination
+      const firstOptionValue = menuOptions?.[0]?.value;
+      // Fallback to a known valid model if the first option or its value is somehow not available
+      const modelFallback = 'learnlm-2.0-flash-experimental'; 
+      const selectedModel = comboboxValue || (firstOptionValue || modelFallback);
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -715,64 +780,6 @@ export default function Home() {
     }, 300); 
   };
 
-  const menuOptions = [
-    {
-      value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-      label: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-      badge: "together.xyz",
-    },
-    {
-      value: "mistralai/mistral-small-3.1-24b-instruct:free",
-      label: "mistralai/mistral-small-3.1-24b-instruct:free",
-      badge: "openrouter.ai",
-    },
-    {
-      value: "learnlm-2.0-flash-experimental",
-      label: "learnlm-2.0-flash-experimental",
-      badge: "gemini",
-    },
-    {
-      value: "learnlm-1.5-pro-experimental",
-      label: "learnlm-1.5-pro-experimental",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-1.5-flash-8b",
-      label: "gemini-1.5-flash-8b",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-1.5-flash",
-      label: "gemini-1.5-flash",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-1.5-pro",
-      label: "gemini-1.5-pro",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-2.0-flash-lite",
-      label: "gemini-2.0-flash-lite",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-2.0-flash",
-      label: "gemini-2.0-flash",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-2.5-flash-preview-04-17",
-      label: "gemini-2.5-flash-preview-04-17",
-      badge: "gemini",
-    },
-    {
-      value: "gemini-2.5-pro-preview-03-25",
-      label: "gemini-2.5-pro-preview-03-25",
-      badge: "gemini",
-    }
-  ];
-
   return (
     <main className="flex flex-col md:flex-row min-h-screen items-start justify-center gap-8 p-6 bg-muted">
       <Card className="w-full max-w-3xl h-[80vh] flex flex-col">
@@ -1261,7 +1268,7 @@ export default function Home() {
                                     name="description"
                                     placeholder="Description"
                                     value={descValues[idx] ?? sd.data.description}
-                                    onChange={e => setDescValues(prev => ({ ...prev, [idx]: e.currentTarget.value }))}
+                                    onChange={e => setDescValues(prev => ({ ...prev, [idx]: (e.target as HTMLInputElement).value }))}
                                   />
                                 </div>
                                 <div className="flex flex-col">

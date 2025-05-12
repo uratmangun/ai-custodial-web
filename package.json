@@ -13,6 +13,7 @@
   "dependencies": {
     "@coinbase/onchainkit": "^0.38.10",
     "@farcaster/frame-sdk": "^0.0.38",
+    "@metamask/delegation-toolkit": "^0.10.2",
     "@radix-ui/react-avatar": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.11",
     "@radix-ui/react-dropdown-menu": "^2.1.12",
@@ -25,7 +26,7 @@
     "@tanstack/react-query": "^5.74.7",
     "@wagmi/core": "latest",
     "@zoralabs/coins": "^0.7.1",
-    "@zoralabs/coins-sdk": "^0.0.8",
+    "@zoralabs/coins-sdk": "^0.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

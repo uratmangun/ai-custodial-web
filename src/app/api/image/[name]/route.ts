@@ -6,9 +6,9 @@ export const runtime = 'nodejs';
 
 export async function GET(
   request: Request,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
-  const { name } = params;
+  const { name } = await params;
   const folder = path.join(process.cwd(), 'data', 'image');
   const filePath = path.join(folder, name);
   try {
