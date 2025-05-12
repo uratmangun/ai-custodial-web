@@ -4,26 +4,27 @@ import path from 'path';
 
 export const runtime = 'nodejs';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ name: string }> }
-) {
-  const { name } = await params;
-  const folder = path.join(process.cwd(), 'data', 'image');
-  const filePath = path.join(folder, name);
+export async function POST(request: Request) {
   try {
-    const buffer = await fs.readFile(filePath);
-    const ext = path.extname(name).toLowerCase();
-    let contentType = 'application/octet-stream';
-    if (ext === '.png') contentType = 'image/png';
-    else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-    else if (ext === '.gif') contentType = 'image/gif';
+    const { name: nameInput, base64 } = await request.json();
+    if (!nameInput || !base64) {
+      return NextResponse.json({ success: false, error: 'Missing name or base64' }, { status: 400 });
+    }
 
-    return new NextResponse(buffer, {
-      status: 200,
-      headers: { 'Content-Type': contentType }
-    });
+    // Ensure name is a string and add .png extension
+    const name = String(nameInput) + '.png';
+
+    const folder = path.join(process.cwd(), 'data', 'image');
+    await fs.mkdir(folder, { recursive: true });
+    // Strip data URI prefix if present
+    const matches = base64.match(/^data:(image\/\w+);base64,(.*)$/);
+    const data = matches ? matches[2] : base64;
+    const buffer = Buffer.from(data, 'base64');
+    const filePath = path.join(folder, name);
+    await fs.writeFile(filePath, buffer);
+    // Return the path with the .png extension
+    return NextResponse.json({ success: true, path: `/data/image/${name}` });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: 'Image not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
