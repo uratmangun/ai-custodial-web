@@ -21,7 +21,7 @@ export async function GET(
   request: Request,
   { params }: { params: { name: string } }
 ) {
-  const { name } = params;
+  const { name } = await params;
   const objectName = name.endsWith('.png') ? name : `${name}.png`;
 
   try {

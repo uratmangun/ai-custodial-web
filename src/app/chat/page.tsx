@@ -986,7 +986,7 @@ export default function Home() {
                                       },
                                     };
                                     try {
-                                      const res = await fetch('/api/create-data', {
+                                      const res = await fetch('/api/mongo/create-data', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify(payload),
@@ -1004,16 +1004,55 @@ export default function Home() {
                                           const matches = imageUrl.match(/^data:(image\/\w+);base64,(.*)$/);
                                           const base64Data = matches ? matches[2] : '';
                                           if (base64Data) {
-                                            const saveImageRes = await fetch('/api/save-image', {
+                                            // First, get a presigned URL from MinIO
+                                            const presignRes = await fetch('/api/save-image', {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ name: created.result.$loki, base64: base64Data }),
+                                              body: JSON.stringify({ 
+                                                getPresignedUrl: true, 
+                                                name: created.result._id 
+                                              }),
                                             });
-                                            if (!saveImageRes.ok) {
-                                              const saveErr = await saveImageRes.json();
-                                              toast.error(`Failed to save image: ${saveErr.error || 'Unknown error'}`);
-                                              // Decide if you want to throw error here or just warn
-                                              console.error('Failed to save image:', saveErr);
+                                            
+                                            if (!presignRes.ok) {
+                                              const presignErr = await presignRes.json();
+                                              toast.error(`Failed to get upload URL: ${presignErr.error || 'Unknown error'}`);
+                                              console.error('Failed to get presigned URL:', presignErr);
+                                              return;
+                                            }
+                                            
+                                            // Get the presigned URL from the response
+                                            const { presignedUrl } = await presignRes.json();
+                                            
+                                                                                         // Convert base64 to blob for upload
+                                             // Use the matches from above or extract content type from imageUrl
+                                             const contentType = matches?.[1] || 'image/png';
+                                            const binaryData = atob(base64Data);
+                                            const uint8Array = new Uint8Array(binaryData.length);
+                                            
+                                            for (let i = 0; i < binaryData.length; i++) {
+                                              uint8Array[i] = binaryData.charCodeAt(i);
+                                            }
+                                            
+                                            const blob = new Blob([uint8Array], { type: contentType });
+                                            
+                                            // Upload directly to MinIO using the presigned URL
+                                            try {
+                                              const uploadRes = await fetch(presignedUrl, {
+                                                method: 'PUT',
+                                                body: blob,
+                                                headers: {
+                                                  'Content-Type': contentType
+                                                }
+                                              });
+                                              
+                                              if (!uploadRes.ok) {
+                                                toast.error(`Failed to upload image: ${uploadRes.statusText}`);
+                                                console.error('Failed to upload image:', uploadRes);
+                                              }
+                                            } catch (uploadErr) {
+                                              toast.error('Error uploading image');
+                                              console.error('Error uploading image:', uploadErr);
                                             }
                                           }
                                         } catch (imgSaveError) {
@@ -1026,7 +1065,7 @@ export default function Home() {
                                       const coinParams = {
                                             name: formData.get('name')?.toString() || '',
                                             symbol: formData.get('symbol')?.toString() || '',
-                                            uri: `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${created.result.$loki}`,
+                                            uri: `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${created.result._id}`,
                                             payoutRecipient: formData.get('payoutAddress')?.toString() as Address,
                                             platformReferrer: formData.get('platformAddress')?.toString() as Address,
                                           };
@@ -1037,37 +1076,7 @@ export default function Home() {
                                             ...contractCallParams,
                                      
                                           });
-                                          const res2 = await fetch('/api/create-data', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                              collection: 'create_coins_transactions',
-                                              data: {
-                                                txHash: tx,
-                                                address,
-                                                chainId,
-                                                metadataId: created.result.$loki,
-                                                date: new Date().toISOString(),
-                                              },
-                                            }),
-                                          });
-                                          const res3 = await fetch('/api/create-data', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                              collection: 'transactions',
-                                              data: {
-                                                txHash: tx,
-                                                address,
-                                                chainId,
-                                                date: new Date().toISOString(),
-                                              },
-                                            }),
-                                          });
-                                          if(!res2.ok || !res3.ok){
-                                            toast.error('Network error saving create coin transaction');
-                                          
-                                          }
+                                       
                                           setTxHashes(prev => { const arr = [...prev]; arr[idx] = tx; return arr; });
                                           setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
                                   } catch(e) {

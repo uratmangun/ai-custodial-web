@@ -19,40 +19,48 @@ const minioClient = new Minio.Client({
 
 const bucketName = process.env.MINIO_BUCKET_NAME || 'images'; // Your MinIO bucket name
 
-// Ensure the bucket exists (optional, can be done manually or via another script)
-// async function ensureBucketExists() {
-//   try {
-//     const exists = await minioClient.bucketExists(bucketName);
-//     if (!exists) {
-//       await minioClient.makeBucket(bucketName, 'us-east-1'); // Specify region if needed
-//       console.log(`Bucket ${bucketName} created successfully.`);
-//     }
-//   } catch (err) {
-//     console.error('Error with MinIO bucket:', err);
-//   }
-// }
-// ensureBucketExists(); // Call this once, perhaps at server startup if needed
-
-export async function POST(
-  request: Request,
-  { params }: { params: { name: string } } // Assuming name is still from URL path
-) {
+// Ensure the bucket exists
+async function ensureBucketExists() {
   try {
-    const { name } = params;
-    const body = await request.json();
-    const imageBase64 = body.imageBase64; // Expecting { "imageBase64": "..." } in request body
+    const exists = await minioClient.bucketExists(bucketName);
+    if (!exists) {
+      await minioClient.makeBucket(bucketName, 'us-east-1'); // Specify region if needed
+      console.log(`Bucket ${bucketName} created successfully.`);
+    }
+  } catch (err) {
+    console.error('Error with MinIO bucket:', err);
+    throw err; // Rethrow to handle it in the calling function
+  }
+}
 
-    if (!imageBase64) {
-      return NextResponse.json({ success: false, error: 'imageBase64 data is required' }, { status: 400 });
+// Original direct upload method
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    
+    // Check if this is a presigned URL request
+    if (body.getPresignedUrl) {
+      return await generatePresignedUrl(body.name);
+    }
+    
+    // Otherwise, proceed with the standard upload method
+    const name = body.name;
+    const base64Data = body.base64;
+
+    if (!base64Data) {
+      return NextResponse.json({ success: false, error: 'base64 data is required' }, { status: 400 });
     }
 
     if (!name) {
       return NextResponse.json({ success: false, error: 'Image name parameter is required' }, { status: 400 });
     }
 
+    // Ensure bucket exists before upload
+    await ensureBucketExists();
+
     // Remove potential base64 prefix (e.g., "data:image/png;base64,")
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-    const imageBuffer = Buffer.from(base64Data, 'base64');
+    const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+    const imageBuffer = Buffer.from(cleanBase64, 'base64');
     
     // The object name in MinIO. We'll use the provided 'name' and ensure it's a .png
     const objectName = name.endsWith('.png') ? name : `${name}.png`;
@@ -63,22 +71,50 @@ export async function POST(
 
     await minioClient.putObject(bucketName, objectName, imageBuffer, imageBuffer.length, metaData);
 
-    // Construct the URL for the uploaded image (optional, depends on your MinIO setup and needs)
-    // const imageUrl = `${process.env.MINIO_PUBLIC_URL || `http://${minioClient.host}:${minioClient.port}`}/${bucketName}/${objectName}`;
-
     return NextResponse.json({ 
       success: true, 
       message: `Image '${objectName}' uploaded successfully to bucket '${bucketName}'.`,
-      // imageUrl: imageUrl // Optionally return the URL
     }, { status: 201 });
 
   } catch (error: any) {
     console.error('Error uploading to MinIO:', error);
-    // More specific error handling can be added here based on MinIO errors
     if (error.code === 'NoSuchBucket') {
         return NextResponse.json({ success: false, error: `MinIO bucket '${bucketName}' not found. Please create it.` }, { status: 500 });
     }
     return NextResponse.json({ success: false, error: 'Failed to upload image to MinIO', details: error.message }, { status: 500 });
+  }
+}
+
+// Generate a presigned URL for client-side upload
+async function generatePresignedUrl(name: string) {
+  if (!name) {
+    return NextResponse.json({ success: false, error: 'Image name parameter is required' }, { status: 400 });
+  }
+
+  try {
+    // Ensure bucket exists before generating URL
+    await ensureBucketExists();
+    
+    const objectName = name.endsWith('.png') ? name : `${name}.png`;
+    
+    // Generate a presigned URL valid for 10 minutes (600 seconds)
+    const presignedUrl = await minioClient.presignedPutObject(bucketName, objectName, 600);
+    
+    return NextResponse.json({
+      success: true,
+      presignedUrl,
+      objectName,
+      bucketName,
+      // Include a URL for accessing the image after upload (if MinIO has public access configured)
+      publicUrl: `${process.env.MINIO_PUBLIC_URL || ''}/${bucketName}/${objectName}`
+    });
+  } catch (error: any) {
+    console.error('Error generating presigned URL:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Failed to generate presigned URL', 
+      details: error.message 
+    }, { status: 500 });
   }
 }
 

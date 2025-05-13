@@ -1,7 +1,7 @@
 import { MongoClient, Collection, Db, Document } from 'mongodb';
 
-// Connection URL - use the container name since they're on the same Docker network
-const url = 'mongodb://0fDoshvM:67+S$sVP9rru0g*R@local6342:27017';
+// Connection URL - explicitly set to localhost to avoid container ID issues
+const url = `mongodb://localhost:32769/?directConnection=true`;
 const dbName = 'custodial_db';
 
 // Create a singleton MongoDB client
