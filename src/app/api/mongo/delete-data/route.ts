@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { remove } from '@/lib/db';
+import { remove } from '@/lib/mongodb';
 
 export const runtime = 'nodejs';
 

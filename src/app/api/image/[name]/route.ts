@@ -1,8 +1,67 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import * as Minio from 'minio';
+import { Buffer } from 'buffer';
 
 export const runtime = 'nodejs';
+
+// Initialize MinIO client for GET endpoint
+const minioClient = new Minio.Client({
+  endPoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
+  port: parseInt(process.env.MINIO_PORT || '9000', 10),
+  useSSL: process.env.MINIO_USE_SSL === 'true',
+  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+});
+
+const bucketName = process.env.MINIO_BUCKET_NAME || 'images';
+
+export async function GET(
+  request: Request,
+  { params }: { params: { name: string } }
+) {
+  const { name } = params;
+  const objectName = name.endsWith('.png') ? name : `${name}.png`;
+
+  try {
+    // Get the object from MinIO
+    const stream = await minioClient.getObject(bucketName, objectName);
+    
+    // Read the stream into a buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    // Return the image with appropriate headers
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: { 'Content-Type': 'image/png' }
+    });
+  } catch (error: any) {
+    console.error('Error fetching image from MinIO:', error);
+    
+    // Fall back to local file system if MinIO fails or if the object doesn't exist
+    try {
+      const folder = path.join(process.cwd(), 'data', 'image');
+      const filePath = path.join(folder, objectName);
+      const buffer = await fs.readFile(filePath);
+      
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' }
+      });
+    } catch (fsError) {
+      // If both MinIO and file system fail, return an error
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Image not found in MinIO or local filesystem' 
+      }, { status: 404 });
+    }
+  }
+}
 
 export async function POST(request: Request) {
   try {

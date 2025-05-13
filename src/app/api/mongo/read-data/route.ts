@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCollection } from '@/lib/db';
+import { getCollection } from '@/lib/mongodb';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +21,6 @@ export async function GET(request: Request) {
       params[key] = !isNaN(num) ? num : value;
     }
   }
-  const results = coll.find(params);
+  const results = await coll.find(params).toArray();
   return NextResponse.json({ success: true, results });
 }

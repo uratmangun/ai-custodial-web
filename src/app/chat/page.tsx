@@ -1,111 +1,31 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectButton } from '@/components/custom/ConnectButton';
+import { ChainSelector } from '@/components/custom/ChainSelector';
 import { useRouter } from 'next/navigation';
-import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract } from 'wagmi';
+import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract,useConnect,useDisconnect } from 'wagmi';
 import { formatEther, parseEther, zeroAddress, parseUnits, formatUnits, keccak256, encodePacked, toHex, maxUint256 } from 'viem'
 import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
-import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments,simulateBuy,tradeCoinCall } from "@zoralabs/coins-sdk";
-import { coinABI } from "@zoralabs/coins";
+import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments,tradeCoinCall } from "@zoralabs/coins-sdk";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback} from "@/components/ui/avatar";
-import { Check, ChevronsUpDown, Copy } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {  Copy } from "lucide-react";
 import { toast } from "sonner";
-import { Loader2, RefreshCcw } from "lucide-react";
+import { Loader2} from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
 import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { getTransactionReceipt } from '@wagmi/core';
 import { sdk } from '@farcaster/frame-sdk'
 
-const menuOptions = [
-  {
-    value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-    label: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-    badge: "together.xyz",
-  },
-  {
-    value: "mistralai/mistral-small-3.1-24b-instruct:free",
-    label: "mistralai/mistral-small-3.1-24b-instruct:free",
-    badge: "openrouter.ai",
-  },
-  {
-    value: "learnlm-2.0-flash-experimental",
-    label: "learnlm-2.0-flash-experimental",
-    badge: "gemini",
-  },
-  {
-    value: "learnlm-1.5-pro-experimental",
-    label: "learnlm-1.5-pro-experimental",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-1.5-flash-8b",
-    label: "gemini-1.5-flash-8b",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-1.5-flash",
-    label: "gemini-1.5-flash",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-1.5-pro",
-    label: "gemini-1.5-pro",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-2.0-flash-lite",
-    label: "gemini-2.0-flash-lite",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-2.0-flash",
-    label: "gemini-2.0-flash",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-2.5-flash-preview-04-17",
-    label: "gemini-2.5-flash-preview-04-17",
-    badge: "gemini",
-  },
-  {
-    value: "gemini-2.5-pro-preview-03-25",
-    label: "gemini-2.5-pro-preview-03-25",
-    badge: "gemini",
-  }
-];
+
 
 export default function Home() {
-  const router = useRouter();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedSquare, setSelectedSquare] = useState<{ row: number; col: number } | null>(null);
+ 
   const [messages, setMessages] = useState<string[]>([]);
   const [messageRoles, setMessageRoles] = useState<('user'|'assistant'|'tool')[]>([]);
   const [messageToolCallIds, setMessageToolCallIds] = useState<string[]>([]);
@@ -147,6 +67,8 @@ export default function Home() {
   const publicClient = getPublicClient(config, { chainId })
   const { switchChain } = useSwitchChain()
   const { writeContractAsync } = useWriteContract(); 
+  const { connectors, connect, status, error: connectError } = useConnect()
+  const { disconnect } = useDisconnect()
 
  
  
@@ -285,16 +207,10 @@ export default function Home() {
         .filter(msg => msg.content != null);
       payloadMessages.push({ role: 'user', content: userMsg });
 
-      // More robust selectedModel determination
-      const firstOptionValue = menuOptions?.[0]?.value;
-      // Fallback to a known valid model if the first option or its value is somehow not available
-      const modelFallback = 'learnlm-2.0-flash-experimental'; 
-      const selectedModel = comboboxValue || (firstOptionValue || modelFallback);
-
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payloadMessages, modelName: selectedModel }),
+        body: JSON.stringify({ messages: payloadMessages}),
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -669,7 +585,7 @@ export default function Home() {
             contractCallParams = tradeCoinCall(tradeParams);
             tx = await writeContractAsync({
               ...contractCallParams,
-              gas: 23000n // Hardcoded gas limit based on error
+       
             });
             aiMsg = `Executed buy: ${amount} ETH of ${coinAddress}. TX: ${tx}`;
 
@@ -688,7 +604,7 @@ export default function Home() {
             contractCallParams = tradeCoinCall(tradeParams);
             tx = await writeContractAsync({
               ...contractCallParams,
-              gas: 23000n // Hardcoded gas limit based on error
+           
             });
             aiMsg = `Executed sell: ${amount} of ${coinAddress}. TX: ${tx}`;
           } else {
@@ -786,51 +702,13 @@ export default function Home() {
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
             <CardTitle>AI Custodial Chat</CardTitle>
-            <ConnectButton />
+        
+            <div className="flex justify-end mb-4 space-x-3">
+              <ChainSelector />
+              <ConnectButton />
+            </div>
           </div>
-          <div className="flex justify-end w-full mt-2">
-            <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={comboboxOpen}
-                  className="w-full sm:w-[350px] justify-between"
-                >
-                  <span className="flex-1 truncate">
-                    {comboboxValue
-                      ? menuOptions.find(o => o.value === comboboxValue)?.label
-                      : menuOptions[0]?.label}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-0" style={{ width: 'var(--radix-popover-trigger-width)' }}>
-                <Command>
-                  <CommandInput placeholder="Search option..." />
-                  <CommandList>
-                    <CommandEmpty>No option found.</CommandEmpty>
-                    <CommandGroup>
-                      {menuOptions.map(option => (
-                        <CommandItem
-                          key={option.value}
-                          value={option.value}
-                          onSelect={currentValue => {
-                            setComboboxValue(currentValue === comboboxValue ? "" : currentValue);
-                            setComboboxOpen(false);
-                          }}
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", comboboxValue === option.value ? "opacity-100" : "opacity-0")} />
-                          <span className="truncate flex-1">{option.label}</span>
-                          {option.badge && <Badge variant="outline" className="ml-2">{option.badge}</Badge>}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+  
         </CardHeader>
         <CardContent className="flex-1 p-4 overflow-hidden">
           <ScrollArea className="h-full pr-4">

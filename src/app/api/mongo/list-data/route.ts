@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCollection } from '@/lib/db';
+import { getCollection } from '@/lib/mongodb';
 
 export const runtime = 'nodejs';
 
@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: 'Missing collection parameter' }, { status: 400 });
   }
   const coll = await getCollection(collection);
-  const results = coll.find({});
+  const results = await coll.find({}).toArray();
   return NextResponse.json({ success: true, results });
 }

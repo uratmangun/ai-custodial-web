@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listCollections } from '@/lib/db';
+import { listCollections } from '@/lib/mongodb';
 
 export const runtime = 'nodejs';
 

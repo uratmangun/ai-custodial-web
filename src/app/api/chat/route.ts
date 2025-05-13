@@ -4,72 +4,14 @@ import { NextResponse } from "next/server"; // Import NextResponse for error han
 export async function POST(request: Request) {
   try {
     // Extract messages and the requested modelName from the request body
-    const { messages, modelName: requestedModelName } = await request.json();
+    const { messages } = await request.json();
 
-    // Validate if modelName was provided
-    if (!requestedModelName) {
-      return NextResponse.json({ error: "modelName is required in the request body" }, { status: 400 });
-    }
-
-    const availableModels = {
-      "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free": {
-        baseUrl: "https://api.together.xyz/v1",
-        apiKey: process.env.TOGETHER_API_KEY
-      },
-      "mistralai/mistral-small-3.1-24b-instruct:free": {
-        baseUrl: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY
-      },
-      "learnlm-2.0-flash-experimental": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "learnlm-1.5-pro-experimental": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-1.5-flash-8b": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-1.5-flash": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-1.5-pro": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-2.0-flash-lite": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-2.0-flash": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-2.5-flash-preview-04-17": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      },
-      "gemini-2.5-pro-preview-03-25": {
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        apiKey: process.env.GEMINI_API_KEY
-      }
-    };
-
-    // Create an OpenAI API client (that's compatible with the Vercel AI SDK)
-    const selectedModelConfig = availableModels[requestedModelName as keyof typeof availableModels];
-
-    // Validate if the requested model configuration exists
-    if (!selectedModelConfig) {
-      return NextResponse.json({ error: `Model '${requestedModelName}' not found or configured.` }, { status: 400 });
-    }
+   
 
     // Use the selected configuration
     const openai = new OpenAI({
-      baseURL: selectedModelConfig.baseUrl,
-      apiKey: selectedModelConfig.apiKey,
+      baseURL: "https://llama70b.gaia.domains/v1",
+      apiKey: process.env.GAIA_API_KEY,
     });
 
     const tools: OpenAI.ChatCompletionTool[] = [
@@ -300,7 +242,7 @@ If a question falls outside these tools, respond "Available tool calls: switch_c
     };
     const payloadMessages = [systemMessage, ...messages];
     const response = await openai.chat.completions.create({
-      model: requestedModelName, // Use the requested model name
+      model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", // Use the requested model name
       messages: payloadMessages,
       tools,
     });
