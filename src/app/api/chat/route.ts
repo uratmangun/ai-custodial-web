@@ -15,38 +15,7 @@ export async function POST(request: Request) {
     });
 
     const tools: OpenAI.ChatCompletionTool[] = [
-      {
-        type: "function",
-        function: {
-          name: "switch_chain",
-          description: "Switch between Ethereum blockchains. Default is baseSepolia.",
-          parameters: {
-            type: "object",
-            properties: {
-              chain: {
-                type: "string",
-                description: "The chain to switch to: base or baseSepolia",
-                enum: ["base", "baseSepolia"],
-                default: "baseSepolia",
-              },
-            },
-            required: ["chain"],
-            additionalProperties: false,
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "current_chain",
-          description: "Get the current active blockchain chain.",
-          parameters: {
-            type: "object",
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-      },
+    
       {
         type: "function",
         function: {
