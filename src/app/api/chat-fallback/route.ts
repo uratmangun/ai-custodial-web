@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server"; // Import NextResponse for error handling
-import { tools, systemMessage } from "@/lib/chat-tools";
+import { systemMessage } from "@/lib/chat-tools";
 
 export async function POST(request: Request) {
   try {
@@ -19,8 +19,7 @@ export async function POST(request: Request) {
     const response = await openai.chat.completions.create({
       model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", // Use the requested model name
       messages: payloadMessages,
-      tools,
-    });
+     });
 
     if (!response.choices || response.choices.length === 0) {
       throw new Error("No message choices returned from AI");

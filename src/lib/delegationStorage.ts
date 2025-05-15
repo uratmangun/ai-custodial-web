@@ -1,10 +1,19 @@
 import type { Hex } from "viem";
-import type { DelegationStruct } from "@metamask/delegation-toolkit";
+import { type Delegation } from "@metamask/delegation-toolkit";
 import {
   DelegationStorageClient,
   DelegationStoreFilter,
-  DelegationStorageEnvironment,
-} from "@metamask/delegation-toolkit";
+} from "@metamask/delegation-toolkit/experimental";
+
+// Define environment constants and types
+type Environment = {
+  apiUrl: string;
+};
+
+const environments = {
+  dev: { apiUrl: "https://api.dev.delegation.metamask.io" } as Environment,
+  prod: { apiUrl: "https://api.delegation.metamask.io" } as Environment,
+};
 
 let instance: DelegationStorageClient | null = null;
 
@@ -24,7 +33,7 @@ const logStorageConfig = (apiKey?: string, apiKeyId?: string) => {
     lastChars: apiKeyId?.substring(apiKeyId.length - 4),
     hasSpecialChars: apiKeyId?.match(/[^a-zA-Z0-9]/) ? true : false,
   });
-  console.log("Environment:", DelegationStorageEnvironment.dev);
+  console.log("Environment:", environments.dev);
   console.log("Running on:", typeof window !== "undefined" ? "client" : "server");
   console.groupEnd();
 };
@@ -45,7 +54,7 @@ export const getDelegationStorageClient = (): DelegationStorageClient => {
       instance = new DelegationStorageClient({
         apiKey,
         apiKeyId,
-        environment: DelegationStorageEnvironment.dev,
+        environment: environments.dev,
         // fetcher: typeof window !== "undefined" ? window.fetch.bind(window) : undefined,
       });
       console.log("DelegationStorageClient initialized successfully");
@@ -57,7 +66,7 @@ export const getDelegationStorageClient = (): DelegationStorageClient => {
   return instance;
 };
 
-export const storeDelegation = async (delegation: DelegationStruct) => {
+export const storeDelegation = async (delegation: Delegation) => {
   try {
     console.group("=== Storing Delegation ===");
     console.log("Delegation details:", {
@@ -115,4 +124,4 @@ export const fetchDelegations = async (
   }
 };
 
-export { DelegationStoreFilter };
+export { DelegationStoreFilter } from "@metamask/delegation-toolkit/experimental";

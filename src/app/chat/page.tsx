@@ -4,11 +4,13 @@ import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@/components/custom/ConnectButton';
 import { ChainSelector } from '@/components/custom/ChainSelector';
 import { useRouter } from 'next/navigation';
-import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract,useConnect,useDisconnect } from 'wagmi';
+import { useAccount, useConfig, useChainId, useConnect, useSwitchChain, useWriteContract, useReadContract, useWalletClient, useSendTransaction, useDisconnect } from "wagmi";
 import { formatEther, parseEther, zeroAddress, parseUnits, formatUnits, keccak256, encodePacked, toHex, maxUint256 } from 'viem'
 import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
-import { getCoinsTopGainers,getProfileBalances,getCoin,getCoinComments,tradeCoinCall } from "@zoralabs/coins-sdk";
+import { getCoinsTopGainers, getProfileBalances, getCoin, getCoinComments, tradeCoinCall } from "@zoralabs/coins-sdk";
+import { erc20Abi } from "viem";
+import { createDelegationAccount, listDelegationAccounts } from "@/lib/delegationService";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -21,7 +23,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
 import { getTransactionReceipt } from '@wagmi/core';
 import { sdk } from '@farcaster/frame-sdk'
-
+import {
+  Implementation,
+  toMetaMaskSmartAccount,
+} from "@metamask/delegation-toolkit";
 
 
 export default function Home() {
@@ -47,28 +52,18 @@ export default function Home() {
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
   const [paginationLoadingIdx, setPaginationLoadingIdx] = useState<number | null>(null);
-  const [comboboxOpen, setComboboxOpen] = useState(false);
-  const [comboboxValue, setComboboxValue] = useState("");
-  const [tokens, setTokens] = useState([
-    { name: 'Token A', address: '0xabc123...', amount: 100 },
-    { name: 'Token B', address: '0xdef456...', amount: 250 },
-    { name: 'Token C', address: '0xghi789...', amount: 50 },
-  ]);
-  const [sortAsc, setSortAsc] = useState(true);
-  const sortedTokens = [...tokens].sort((a, b) => sortAsc ? a.amount - b.amount : b.amount - a.amount);
-  const [selectedChain, setSelectedChain] = useState<string>("8453");
-  const [transactions, setTransactions] = useState<{ txHash: string; address: string; chainId: string; date: string; }[]>([]);
-  const [createCoinTxs, setCreateCoinTxs] = useState<{ txHash: string; address: string; metadataId: string; date: string; }[]>([]);
-  const { address, isConnected } = useAccount();
+  
+  const account = useAccount();
+  const { address} = account;
   const chainId = useChainId()
   const chatEndRef = useRef<HTMLDivElement>(null);
   const config = useConfig()
-  const chain = config.chains.find((c) => c.id === chainId)
-  const publicClient = getPublicClient(config, { chainId })
-  const { switchChain } = useSwitchChain()
-  const { writeContractAsync } = useWriteContract(); 
-  const { connectors, connect, status, error: connectError } = useConnect()
-  const { disconnect } = useDisconnect()
+
+  const publicClient = getPublicClient(config, { chainId }) as NonNullable<ReturnType<typeof getPublicClient>>
+ 
+  const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction(); 
+
 
  
  
@@ -197,20 +192,10 @@ export default function Home() {
     setMessageStructuredData(prev => [...prev, null]); 
     setLoading(true);
     try {
-      const payloadMessages = messages
-        .map((m, i) => {
-          if (messageRoles[i] === 'tool') {
-            return { role: 'tool', tool_call_id: messageToolCallIds[i], content: m };
-          }
-          return { role: messageRoles[i], content: m };
-        })
-        .filter(msg => msg.content != null);
-      payloadMessages.push({ role: 'user', content: userMsg });
-
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payloadMessages}),
+        body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }]}),
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -218,16 +203,42 @@ export default function Home() {
         return;
       }
       const { content: aiContent, tool_calls } = await res.json();
-      setMessages(prev => [...prev, aiContent]);
+      
+      // If content is empty, try the fallback endpoint
+      let finalContent = aiContent;
+      let finalToolCalls = tool_calls;
+      
+      if ((!aiContent || aiContent.trim() === '') && (!tool_calls || tool_calls.length === 0)) {
+        try {
+          const fallbackRes = await fetch('/api/chat-fallback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }]}),
+          });
+          
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            if (fallbackData.content && fallbackData.content.trim() !== '') {
+              finalContent = fallbackData.content;
+              finalToolCalls = fallbackData.tool_calls || tool_calls;
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Error with fallback API:', fallbackError);
+          // Continue with empty content if fallback fails
+        }
+      }
+      
+      setMessages(prev => [...prev, finalContent]);
       setMessageRoles(prev => [...prev, 'assistant']);
-      setMessageToolCallIds(prev => [...prev, tool_calls?.[0]?.id || '']);
+      setMessageToolCallIds(prev => [...prev, finalToolCalls?.[0]?.id || '']);
       setIsUserMessage(prev => [...prev, false]);
       setUsernames(prev => [...prev, 'AI']);
       setDates(prev => [...prev, formatDate(new Date())]);
       setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-      setToolCalls(prev => [...prev, tool_calls || []]);
-      setRespondedToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
-      setLoadingToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
+      setToolCalls(prev => [...prev, finalToolCalls || []]);
+      setRespondedToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
+      setLoadingToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
       setMessageStructuredData(prev => [...prev, null]); 
     } catch (error) {
       console.error('Error fetching AI response:', error);
@@ -257,78 +268,25 @@ export default function Home() {
       });
       return;
     }
-    
+
     try {
       const toolName = tc.function?.name || tc.name;
-      if (toolName === 'switch_chain') {
-        const chainName = tc.function?.arguments
-          ? JSON.parse(tc.function.arguments).chain
-          : tc.arguments?.chain;
-        if (!isConnected) {
-          toast.error('Please connect to a wallet first');
-          return;
-        }
-        switchChain({ chainId: chainName === 'base' ? 8453 : 84532 })
-        const aiMsg = `Switched to ${chainName}.`;
-        setMessages(prev => [...prev, aiMsg]);
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
-        setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'AI']);
-        setDates(prev => [...prev, formatDate(new Date())]);
-        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, []]);
-        setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, null]); 
-      } else if (toolName === 'current_chain') {
-  
-        const aiMsg = `Current chain is ${chain?.name} (Chain ID: ${chain?.id})`;
-        setMessages(prev => [...prev, aiMsg]);
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
-        setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'AI']);
-        setDates(prev => [...prev, formatDate(new Date())]);
-        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, []]);
-        setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, null]); 
-      } else if (toolName === 'check_address') {
-        if (!isConnected) {
-          toast.error('Please connect to a wallet first');
-          return;
-        }
-        const aiMsg = address ? `Connected address: ${address}` : 'No address available';
-        setMessages(prev => [...prev, aiMsg]);
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id]);
-        setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'AI']);
-        setDates(prev => [...prev, formatDate(new Date())]);
-        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, []]);
-        setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, null]); 
-        setLoadingToolCalls(prev => [...prev, []]);
-      } else if (toolName === 'check_balance') {
+
+      if (toolName === 'check_balance') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const addressParam = args.address || address;
         const nextPage = args.next_page;
-        const balance = await getBalance(addressParam);
+        const balance = addressParam ? await publicClient.getBalance({ address: addressParam as Address }) : 0n;
         const response = await getProfileBalances({
-          identifier: addressParam, 
-          count: 20,        
-          after: nextPage, 
-          chainIds: [chainId]
+          identifier: addressParam,
+          count: 20,
+          after: nextPage,
+          chainIds: [chainId],
         });
-       
         const profile: any = response.data?.profile;
-        const pageInfo = profile.coinBalances?.pageInfo;
-        const lines: string[] = [];
-        let balanceData: any[] = [];
-        balanceData=response.data?.profile?.coinBalances?.edges.map((edge: any) => edge.node) || [];
-        const display = lines.join('\n');
-        setMessages(prev => [...prev, display]);
+        const pageInfo = profile?.coinBalances?.pageInfo;
+        const balanceData = profile?.coinBalances?.edges.map((edge: any) => edge.node) || [];
+        setMessages(prev => [...prev, '']);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
@@ -344,175 +302,33 @@ export default function Home() {
           walletAddress: addressParam,
           ethBalance: balance,
         }]);
-      } else if (toolName === 'get_coin_top_gainers') {
-        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const nextPage = args.next_page;
-        if (chainId!==8453) {
-          toast.error('Please switch to base first');
-          return;
-        }
-        let response;
-        try {
-          response = await getCoinsTopGainers({ 
-            count: 10,        // Number of coins per page
-            after: nextPage ?? undefined 
-          });
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Error fetching top gainers');
-          return;
-        }
-        const coins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
-        const nextPageCursor = response.data?.exploreList?.pageInfo?.endCursor;
-
-        setMessageStructuredData(prev => [
-          ...prev,
-          {
-            type: 'get_coin_top_gainers',
-            data: coins,
-            pageCursors: [undefined, nextPageCursor],
-            currentPage: 1,
-            startIndex: 0
-          }
-        ]);
-
-        setMessages(prev => [...prev, '']);
-        setMessageRoles(prev => [...prev, 'tool']);
-        setMessageToolCallIds(prev => [...prev, tc.id || '']);
-        setIsUserMessage(prev => [...prev, false]);
-        setUsernames(prev => [...prev, 'AI']);
-        setDates(prev => [...prev, formatDate(new Date())]);
-        setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-        setToolCalls(prev => [...prev, [tc]]);
-        setRespondedToolCalls(prev => [...prev, [false]]);
-        setLoadingToolCalls(prev => [...prev, [false]]);
       } else if (toolName === 'check_coin') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const coinAddress = args.address;
-        
         let response;
         try {
-          response = await getCoin({
-            address: coinAddress,
-            chain: chainId,
-          });
-        } catch (err) {
+          response = await getCoin({ address: coinAddress, chain: chainId });
+        } catch {
           toast.error('Failed to fetch coin details');
-          setLoadingToolCalls(prev => {
-            const arr = prev.map(inner => [...inner]);
-            if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
-            return arr;
-          });
           return;
         }
-        
-       
         const coin = response.data?.zora20Token;
-         //@ts-ignore
-        const tokenUri = coin?.tokenUri;
         if (!coin) {
           setMessages(prev => [...prev, `Coin not found for address: ${coinAddress}`]);
-          setMessageRoles(prev => [...prev, 'assistant']);
-          setMessageToolCallIds(prev => [...prev, '']);
-          setIsUserMessage(prev => [...prev, false]);
-          setUsernames(prev => [...prev, 'AI']);
-          setDates(prev => [...prev, formatDate(new Date())]);
-          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-          setToolCalls(prev => [...prev, []]);
-          setRespondedToolCalls(prev => [...prev, []]);
-          setMessageStructuredData(prev => [...prev, null]); 
         } else {
           const lines: string[] = [];
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
           lines.push(`- **Chain:** ${coin.chainId===84532?'Base Sepolia':'Base'}`);
-
-          let displayDescription = coin.description; // Default description
-          if (typeof tokenUri === 'string' && tokenUri) {
-            try {
-              const uriResponse = await fetch(tokenUri);
-              if (uriResponse.ok) {
-                const uriData = await uriResponse.json();
-                if (uriData?.description) {
-                  displayDescription = uriData.description; // Use description from URI
-                } else {
-                  console.warn(`Fetched token URI data for ${coin.address} but it lacks a description.`);
-                }
-              } else {
-                console.error(`Failed to fetch token URI ${tokenUri}: ${uriResponse.statusText}`);
-              }
-            } catch (fetchError) {
-              console.error(`Error fetching or parsing token URI ${tokenUri}:`, fetchError);
-            }
-          }
-
-          if (displayDescription) lines.push(`- **Description:** ${displayDescription}`);
+          if (coin.description) lines.push(`- **Description:** ${coin.description}`);
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
           lines.push(`- **24h Volume:** ${coin.volume24h ?? 'N/A'}`);
           lines.push(`- **Owner:** ${coin.creatorAddress ?? 'N/A'}`);
           lines.push(`- **Created At:** ${coin.createdAt ?? 'N/A'}`);
           lines.push(`- **Unique Holders:** ${coin.uniqueHolders ?? 'N/A'}`);
-          if (coin.mediaContent?.previewImage) {
-            lines.push(`![Preview Image](${coin.mediaContent.originalUri})`);
-          }
           setMessages(prev => [...prev, lines.join('\n')]);
-          setMessageRoles(prev => [...prev, 'assistant']);
-          setMessageToolCallIds(prev => [...prev, '']);
-          setIsUserMessage(prev => [...prev, false]);
-          setUsernames(prev => [...prev, 'AI']);
-          setDates(prev => [...prev, formatDate(new Date())]);
-          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-          setToolCalls(prev => [...prev, []]);
-          setRespondedToolCalls(prev => [...prev, []]);
-          setMessageStructuredData(prev => [...prev, null]); 
         }
-        setLoadingToolCalls(prev => [...prev, []]);
-        return;
-      } else if (toolName === 'get_coin_comment') {
-        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const coinAddress = args.address;
-        const chain = args.chain || 'base';
-        const nextPage = args.next_page;
-        let response;
-        try {
-          response = await getCoinComments({
-            address: coinAddress,
-            chain: chain === 'base' ? 8453 : 84532,
-            after: nextPage,
-          });
-        } catch (err) {
-          toast.error('Failed to fetch coin comments');
-          setLoadingToolCalls(prev => {
-            const arr = prev.map(inner => [...inner]);
-            if (arr[msgIdx]) arr[msgIdx][callIdx] = false;
-            return arr;
-          });
-          return;
-        }
-        const comments = response.data?.zora20Token?.zoraComments?.edges || [];
-        const pageInfo = response.data?.zora20Token?.zoraComments?.pageInfo;
-        const commentData = comments.map((item: any) => {
-          const c = item.node;
-          let readableDate = '';
-          if (typeof c.timestamp === 'number') readableDate = new Date(c.timestamp * 1000).toLocaleString();
-          else if (typeof c.timestamp === 'string') readableDate = new Date(c.timestamp).toLocaleString();
-          return {
-            comment: c.comment,
-            userAddress: c.userAddress,
-            handle: c.userProfile?.handle ?? 'N/A',
-            readableDate,
-          };
-        });
-        setMessageStructuredData(prev => [...prev, {
-          type: 'get_coin_comment',
-          coinAddress,
-          chain: chain === 'base' ? 8453 : 84532,
-          data: commentData,
-          pageCursors: [undefined, pageInfo?.endCursor],
-          currentPage: 1,
-          startIndex: 0,
-        }]);
-        setMessages(prev => [...prev, '']);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
         setIsUserMessage(prev => [...prev, false]);
@@ -521,11 +337,10 @@ export default function Home() {
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
-        setLoadingToolCalls(prev => [...prev, []]);
-        return;
+        setMessageStructuredData(prev => [...prev, null]);
       } else if (toolName === 'create_coin') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const { name, symbol,description,imageUrl } = args;
+        const { name, symbol, description, imageUrl } = args;
         setMessages(prev => [...prev, `Coin created: ${name} (${symbol})`]);
         setMessageRoles(prev => [...prev, 'tool']);
         setMessageToolCallIds(prev => [...prev, tc.id]);
@@ -535,9 +350,7 @@ export default function Home() {
         setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
         setToolCalls(prev => [...prev, []]);
         setRespondedToolCalls(prev => [...prev, []]);
-        setMessageStructuredData(prev => [...prev, { type: 'create_coin', data: { name, symbol,description,imageUrl } }]);
-        setLoadingToolCalls(prev => [...prev, []]);
-        return;
+        setMessageStructuredData(prev => [...prev, { type: 'create_coin', data: { name, symbol, description, imageUrl } }]);
       } else if (toolName === 'check_coin_address') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
         const { transaction } = args;
@@ -559,67 +372,38 @@ export default function Home() {
         } catch (error) {
           toast.error(error instanceof Error ? error.message : 'Failed to check coin address');
         }
-        setLoadingToolCalls(prev => [...prev, []]);
-        return;
-      }  else if (toolName === 'trade') {
+      } else if (toolName === 'trade') {
         const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const direction = args.direction;
-        const coinAddress = args.address;
-        const amount = args.amount;
-
+        const { direction, address: coinAddress, amount } = args as any;
         try {
-          let contractCallParams;
-          let tx: string | undefined;
-          let aiMsg: string;
-
+          let tx: string;
           if (direction === 'buy') {
-            const tradeParams = {
+            const params = tradeCoinCall({
               direction,
               target: coinAddress as Address,
               args: {
                 recipient: address as Address,
-                orderSize: parseEther(String(amount)), // Buy is with ETH, so parseEther is fine
+                orderSize: parseEther(String(amount)),
                 minAmountOut: 0n,
-              }
-            };
-            contractCallParams = tradeCoinCall(tradeParams);
-            tx = await writeContractAsync({
-              ...contractCallParams,
-       
+              },
             });
-            aiMsg = `Executed buy: ${amount} ETH of ${coinAddress}. TX: ${tx}`;
-
-          } else if (direction === 'sell') {
-           
-
-            const tradeParams = {
+            tx = await writeContractAsync({ ...params });
+          } else {
+            const params = tradeCoinCall({
               direction,
               target: coinAddress as Address,
               args: {
                 recipient: address as Address,
-                orderSize: parseEther(String(amount)), // Use fetched decimals
+                orderSize: parseEther(String(amount)),
                 minAmountOut: parseEther('0.1'),
-              }
-            };
-            contractCallParams = tradeCoinCall(tradeParams);
-            tx = await writeContractAsync({
-              ...contractCallParams,
-           
+              },
             });
-            aiMsg = `Executed sell: ${amount} of ${coinAddress}. TX: ${tx}`;
-          } else {
-            toast.error("Invalid trade direction.");
-            setLoadingToolCalls(prev => {
-              const copy = [...prev];
-              if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
-              return copy;
-            });
-            return;
+            tx = await writeContractAsync({ ...params });
           }
-
+          const aiMsg = `Executed ${direction}: ${amount} ${direction === 'buy' ? 'ETH' : ''} ${coinAddress}. TX: ${tx}`;
           setMessages(prev => [...prev, aiMsg]);
           setMessageRoles(prev => [...prev, 'tool']);
-          setMessageToolCallIds(prev => [...prev, tc.id || '']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
           setIsUserMessage(prev => [...prev, false]);
           setUsernames(prev => [...prev, 'AI']);
           setDates(prev => [...prev, formatDate(new Date())]);
@@ -630,16 +414,107 @@ export default function Home() {
         } catch (err) {
           toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
+      } else if (toolName === 'transfer') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const { address: recipientAddress, amount, token } = args;
+        
+        try {
+          let tx: string;
+          if (token) {
+            // ERC20 token transfer
+            const params = {
+              address: token as Address,
+              abi: erc20Abi,
+              functionName: 'transfer' as const, // Use 'as const' to tell TypeScript this is a literal value
+              args: [recipientAddress as Address, parseEther(amount)] as const // Type the args array as const
+            };
+            tx = await writeContractAsync(params);
+          } else {
+            // Native ETH transfer
+            tx = await sendTransactionAsync({
+              to: recipientAddress as Address,
+              value: parseEther(amount),
+            });
+          }
+          
+          const tokenDisplay = token ? `tokens (${token})` : 'ETH';
+          const aiMsg = `Transferred ${amount} ${tokenDisplay} to ${recipientAddress}. TX: ${tx}`;
+          
+          setMessages(prev => [...prev, aiMsg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, null]);
+        } catch (err) {
+          toast.error(`Error executing transfer: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else if (toolName === 'create_delegation_account') {
+        try {
+          const delegationAccount = await createDelegationAccount();
+          
+          const aiMsg = `Created delegation account: ${delegationAccount.address}`;
+          
+          setMessages(prev => [...prev, aiMsg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, { 
+            type: 'create_delegation_account', 
+            data: delegationAccount 
+          }]);
+        } catch (err) {
+          toast.error(`Error creating delegation account: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else if (toolName === 'list_delegation_accounts') {
+        try {
+          const accounts = await listDelegationAccounts();
+          
+          if (accounts.length === 0) {
+            setMessages(prev => [...prev, "No delegation accounts found."]);
+          } else {
+            const accountList = accounts.map((acc: { address: string, createdAt: string }, i: number) => 
+              `${i+1}. Address: ${acc.address}\n   Created: ${acc.createdAt}`
+            ).join('\n\n');
+            
+            setMessages(prev => [...prev, `Delegation accounts:\n\n${accountList}`]);
+          }
+          
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, { 
+            type: 'list_delegation_accounts', 
+            data: accounts 
+          }]);
+        } catch (err) {
+          toast.error(`Error listing delegation accounts: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else {
+        // ignore unknown tools
       }
     } catch (error) {
-      console.error("Error handling tool call:", error);
+      console.error('Error handling tool call:', error);
     } finally {
       setLoadingToolCalls(prev => {
         const copy = [...prev];
         if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
         return copy;
       });
-      
       setRespondedToolCalls(prev => {
         const arr = prev.map(inner => [...inner]);
         if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
