@@ -13,21 +13,29 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback} from "@/components/ui/avatar";
-import {  Copy } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Copy } from "lucide-react";
 import { toast } from "sonner";
-import { Loader2} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { createCoinCall,getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
+import { createCoinCall, getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
 import { getTransactionReceipt } from '@wagmi/core';
 import { sdk } from '@farcaster/frame-sdk'
+<<<<<<< Updated upstream
 
+=======
+import {
+  Implementation,
+  toMetaMaskSmartAccount,
+  createDelegation
+} from "@metamask/delegation-toolkit";
+>>>>>>> Stashed changes
 
 
 export default function Home() {
- 
+
   const [messages, setMessages] = useState<string[]>([]);
-  const [messageRoles, setMessageRoles] = useState<('user'|'assistant'|'tool')[]>([]);
+  const [messageRoles, setMessageRoles] = useState<('user' | 'assistant' | 'tool')[]>([]);
   const [messageToolCallIds, setMessageToolCallIds] = useState<string[]>([]);
   const [messageStructuredData, setMessageStructuredData] = useState<(any | null)[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -40,13 +48,14 @@ export default function Home() {
   const [createSuccess, setCreateSuccess] = useState<boolean[]>([]);
   const [createCancelled, setCreateCancelled] = useState<boolean[]>([]);
   const [txHashes, setTxHashes] = useState<string[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<Record<number,string>>({});
-  const [descValues, setDescValues] = useState<Record<number,string>>({});
+  const [previewUrls, setPreviewUrls] = useState<Record<number, string>>({});
+  const [descValues, setDescValues] = useState<Record<number, string>>({});
   const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
   const [toolCalls, setToolCalls] = useState<any[][]>([]);
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
   const [paginationLoadingIdx, setPaginationLoadingIdx] = useState<number | null>(null);
+<<<<<<< Updated upstream
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [comboboxValue, setComboboxValue] = useState("");
   const [tokens, setTokens] = useState([
@@ -72,7 +81,19 @@ export default function Home() {
 
  
  
+=======
 
+  const account = useAccount();
+  const { address} = account;
+  const chainId = useChainId()
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const config = useConfig()
+
+  const publicClient = getPublicClient(config, { chainId }) as NonNullable<ReturnType<typeof getPublicClient>>
+>>>>>>> Stashed changes
+
+  const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   useEffect(() => {
     sdk.actions.ready();
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -120,9 +141,9 @@ export default function Home() {
       setPaginationLoadingIdx(messageIndex);
       const toastId = toast.loading(`Loading page ${newPage}...`);
       try {
-        const response = await getCoinsTopGainers({ 
+        const response = await getCoinsTopGainers({
           count: 10,        // Number of coins per page
-          after: targetCursor ?? undefined 
+          after: targetCursor ?? undefined
         });
         const newCoins = response.data?.exploreList?.edges.map((edge: any) => edge.node) || [];
         const newCursor = response.data?.exploreList?.pageInfo?.endCursor;
@@ -194,7 +215,7 @@ export default function Home() {
     setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
     setToolCalls(prev => [...prev, []]);
     setRespondedToolCalls(prev => [...prev, []]);
-    setMessageStructuredData(prev => [...prev, null]); 
+    setMessageStructuredData(prev => [...prev, null]);
     setLoading(true);
     try {
       const payloadMessages = messages
@@ -210,7 +231,11 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+<<<<<<< Updated upstream
         body: JSON.stringify({ messages: payloadMessages}),
+=======
+        body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }] }),
+>>>>>>> Stashed changes
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -218,17 +243,54 @@ export default function Home() {
         return;
       }
       const { content: aiContent, tool_calls } = await res.json();
+<<<<<<< Updated upstream
       setMessages(prev => [...prev, aiContent]);
+=======
+
+      // If content is empty, try the fallback endpoint
+      let finalContent = aiContent;
+      let finalToolCalls = tool_calls;
+
+      if ((!aiContent || aiContent.trim() === '') && (!tool_calls || tool_calls.length === 0)) {
+        try {
+          const fallbackRes = await fetch('/api/chat-fallback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }] }),
+          });
+
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            if (fallbackData.content && fallbackData.content.trim() !== '') {
+              finalContent = fallbackData.content;
+              finalToolCalls = fallbackData.tool_calls || tool_calls;
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Error with fallback API:', fallbackError);
+          // Continue with empty content if fallback fails
+        }
+      }
+
+      setMessages(prev => [...prev, finalContent]);
+>>>>>>> Stashed changes
       setMessageRoles(prev => [...prev, 'assistant']);
       setMessageToolCallIds(prev => [...prev, tool_calls?.[0]?.id || '']);
       setIsUserMessage(prev => [...prev, false]);
       setUsernames(prev => [...prev, 'AI']);
       setDates(prev => [...prev, formatDate(new Date())]);
       setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+<<<<<<< Updated upstream
       setToolCalls(prev => [...prev, tool_calls || []]);
       setRespondedToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
       setLoadingToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
       setMessageStructuredData(prev => [...prev, null]); 
+=======
+      setToolCalls(prev => [...prev, finalToolCalls || []]);
+      setRespondedToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
+      setLoadingToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
+      setMessageStructuredData(prev => [...prev, null]);
+>>>>>>> Stashed changes
     } catch (error) {
       console.error('Error fetching AI response:', error);
       toast.error(error instanceof Error ? error.message : 'Unknown error');
@@ -424,6 +486,7 @@ export default function Home() {
           const lines: string[] = [];
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
+<<<<<<< Updated upstream
           lines.push(`- **Chain:** ${coin.chainId===84532?'Base Sepolia':'Base'}`);
 
           let displayDescription = coin.description; // Default description
@@ -446,6 +509,10 @@ export default function Home() {
           }
 
           if (displayDescription) lines.push(`- **Description:** ${displayDescription}`);
+=======
+          lines.push(`- **Chain:** ${coin.chainId === 84532 ? 'Base Sepolia' : 'Base'}`);
+          if (coin.description) lines.push(`- **Description:** ${coin.description}`);
+>>>>>>> Stashed changes
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
           lines.push(`- **24h Volume:** ${coin.volume24h ?? 'N/A'}`);
@@ -599,7 +666,41 @@ export default function Home() {
                 recipient: address as Address,
                 orderSize: parseEther(String(amount)), // Use fetched decimals
                 minAmountOut: parseEther('0.1'),
+<<<<<<< Updated upstream
               }
+=======
+              },
+            });
+            tx = await writeContractAsync({ ...params });
+          }
+          const aiMsg = `Executed ${direction}: ${amount} ${direction === 'buy' ? 'ETH' : ''} ${coinAddress}. TX: ${tx}`;
+          setMessages(prev => [...prev, aiMsg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, null]);
+        } catch (err) {
+          toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else if (toolName === 'transfer') {
+        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
+        const { address: recipientAddress, amount, token } = args;
+
+        try {
+          let tx: string;
+          if (token) {
+            // ERC20 token transfer
+            const params = {
+              address: token as Address,
+              abi: erc20Abi,
+              functionName: 'transfer' as const, // Use 'as const' to tell TypeScript this is a literal value
+              args: [recipientAddress as Address, parseEther(amount)] as const // Type the args array as const
+>>>>>>> Stashed changes
             };
             contractCallParams = tradeCoinCall(tradeParams);
             tx = await writeContractAsync({
@@ -617,6 +718,12 @@ export default function Home() {
             return;
           }
 
+<<<<<<< Updated upstream
+=======
+          const tokenDisplay = token ? `tokens (${token})` : 'ETH';
+          const aiMsg = `Transferred ${amount} ${tokenDisplay} to ${recipientAddress}. TX: ${tx}`;
+
+>>>>>>> Stashed changes
           setMessages(prev => [...prev, aiMsg]);
           setMessageRoles(prev => [...prev, 'tool']);
           setMessageToolCallIds(prev => [...prev, tc.id || '']);
@@ -628,7 +735,72 @@ export default function Home() {
           setRespondedToolCalls(prev => [...prev, []]);
           setMessageStructuredData(prev => [...prev, null]);
         } catch (err) {
+<<<<<<< Updated upstream
           toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
+=======
+          toast.error(`Error executing transfer: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else if (toolName === 'create_delegation_account') {
+        try {
+          const smartAccount = await toMetaMaskSmartAccount({
+            client: publicClient,
+            implementation: Implementation.Hybrid,
+            deployParams: [account.address, [], [], []],
+            deploySalt,
+            signatory: { account },
+          });
+          const delegation = createDelegation({
+            to: smartAccount.address,
+            from: smartAccount.address,
+            caveats: [] // Empty caveats array - we recommend adding appropriate restrictions.
+          });
+          const aiMsg = `Created delegation account: ${smartAccount.address}`;
+
+          setMessages(prev => [...prev, aiMsg]);
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, {
+            type: 'create_delegation_account',
+            data: delegationAccount
+          }]);
+        } catch (err) {
+          toast.error(`Error creating delegation account: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      } else if (toolName === 'list_delegation_accounts') {
+        try {
+          const accounts = await listDelegationAccounts();
+
+          if (accounts.length === 0) {
+            setMessages(prev => [...prev, "No delegation accounts found."]);
+          } else {
+            const accountList = accounts.map((acc: { address: string, createdAt: string }, i: number) =>
+              `${i + 1}. Address: ${acc.address}\n   Created: ${acc.createdAt}`
+            ).join('\n\n');
+
+            setMessages(prev => [...prev, `Delegation accounts:\n\n${accountList}`]);
+          }
+
+          setMessageRoles(prev => [...prev, 'tool']);
+          setMessageToolCallIds(prev => [...prev, tc.id]);
+          setIsUserMessage(prev => [...prev, false]);
+          setUsernames(prev => [...prev, 'AI']);
+          setDates(prev => [...prev, formatDate(new Date())]);
+          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
+          setToolCalls(prev => [...prev, []]);
+          setRespondedToolCalls(prev => [...prev, []]);
+          setMessageStructuredData(prev => [...prev, {
+            type: 'list_delegation_accounts',
+            data: accounts
+          }]);
+        } catch (err) {
+          toast.error(`Error listing delegation accounts: ${err instanceof Error ? err.message : 'Unknown error'}`);
+>>>>>>> Stashed changes
         }
       }
     } catch (error) {
@@ -658,8 +830,8 @@ export default function Home() {
       copy[msgIdx][callIdx] = true;
       return copy;
     });
-    
-    const tc = toolCalls[msgIdx]?.[callIdx]; 
+
+    const tc = toolCalls[msgIdx]?.[callIdx];
     if (!tc) {
       setLoadingToolCalls(prev => {
         const copy = [...prev];
@@ -668,7 +840,7 @@ export default function Home() {
       });
       return;
     }
-    
+
     setTimeout(() => {
       const aiMsg = `Tool call ${tc.function?.name || tc.name} was rejected.`;
       setMessages(prev => [...prev, aiMsg]);
@@ -680,20 +852,20 @@ export default function Home() {
       setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
       setToolCalls(prev => [...prev, []]);
       setRespondedToolCalls(prev => [...prev, []]);
-      setMessageStructuredData(prev => [...prev, null]); 
-      
+      setMessageStructuredData(prev => [...prev, null]);
+
       setLoadingToolCalls(prev => {
         const copy = [...prev];
         if (copy[msgIdx]) copy[msgIdx][callIdx] = false;
         return copy;
       });
-      
+
       setRespondedToolCalls(prev => {
         const arr = prev.map(inner => [...inner]);
         if (arr[msgIdx]) arr[msgIdx][callIdx] = true;
         return arr;
       });
-    }, 300); 
+    }, 300);
   };
 
   return (
@@ -702,13 +874,13 @@ export default function Home() {
         <CardHeader className="flex flex-col p-4 border-b">
           <div className="flex flex-row items-center justify-between w-full">
             <CardTitle>AI Custodial Chat</CardTitle>
-        
+
             <div className="flex justify-end mb-4 space-x-3">
               <ChainSelector />
               <ConnectButton />
             </div>
           </div>
-  
+
         </CardHeader>
         <CardContent className="flex-1 p-4 overflow-hidden">
           <ScrollArea className="h-full pr-4">
@@ -731,62 +903,62 @@ export default function Home() {
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>AI</AvatarFallback>
                       </Avatar>
-                       <div className={`flex flex-col max-w-[60%] items-start`}>
-                         <span className="text-xs text-muted-foreground mb-1">Assistant</span>
-                         {msg && (
-                           <div className={`rounded-lg px-3 py-2 bg-muted relative max-w-full`}>
-                             <div className="prose prose-sm max-w-none text-sm dark:prose-invert break-words whitespace-pre-wrap overflow-wrap-anywhere"><ReactMarkdown>{msg}</ReactMarkdown></div>
-                             <div className="mt-2">
-                               <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
-                             </div>
-                           </div>
-                         )}
-                         {calls.length > 0 && (
-                           <div className="mt-2 space-y-2 w-full">
-                             {calls.map((call: any, callIdx: number) => (
-                               <Card key={callIdx} className={`bg-background border rounded-md p-3 ${respondedToolCalls[idx]?.[callIdx] ? 'opacity-50' : ''}`}>
-                                 <p className="text-xs font-semibold mb-1">
-                                   {call.function.name || call.name} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
-                                   {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
-                                 </p>
-                                 <div className="max-w-[300px] overflow-x-auto">
-                                   <pre className="text-xs bg-muted p-2 rounded whitespace-pre overflow-x-auto">
-                                     {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
-                                   </pre>
-                                 </div>
-                                 {!respondedToolCalls[idx]?.[callIdx] && (
-                                   <div className="mt-2 flex gap-2 justify-end">
-                                     <Button
-                                       size="sm"
-                                       variant="outline"
-                                       onClick={() => handleReject(idx, callIdx)}
-                                       disabled={loadingToolCalls[idx]?.[callIdx]}
-                                     >
-                                       {loadingToolCalls[idx]?.[callIdx] ? (
-                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                       ) : 'Reject'}
-                                     </Button>
-                                     <Button
-                                       size="sm"
-                                       onClick={() => handleAccept(idx, callIdx)}
-                                       disabled={loadingToolCalls[idx]?.[callIdx]}
-                                     >
-                                       {loadingToolCalls[idx]?.[callIdx] ? (
-                                         <>
-                                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                           Processing...
-                                         </>
-                                       ) : 'Accept'}
-                                     </Button>
-                                   </div>
-                                 )}
-                               </Card>
-                             ))}
-                           </div>
-                         )}
-                       </div>
-                     </div>
-                   );
+                      <div className={`flex flex-col max-w-[60%] items-start`}>
+                        <span className="text-xs text-muted-foreground mb-1">Assistant</span>
+                        {msg && (
+                          <div className={`rounded-lg px-3 py-2 bg-muted relative max-w-full`}>
+                            <div className="prose prose-sm max-w-none text-sm dark:prose-invert break-words whitespace-pre-wrap overflow-wrap-anywhere"><ReactMarkdown>{msg}</ReactMarkdown></div>
+                            <div className="mt-2">
+                              <span className="text-xs text-muted-foreground block text-right">{dates[idx]} {timestamps[idx]}</span>
+                            </div>
+                          </div>
+                        )}
+                        {calls.length > 0 && (
+                          <div className="mt-2 space-y-2 w-full">
+                            {calls.map((call: any, callIdx: number) => (
+                              <Card key={callIdx} className={`bg-background border rounded-md p-3 ${respondedToolCalls[idx]?.[callIdx] ? 'opacity-50' : ''}`}>
+                                <p className="text-xs font-semibold mb-1">
+                                  {call.function.name || call.name} ({messageToolCallIds[idx]?.substring(0, 8) || 'N/A'})
+                                  {sd?.type === 'check_balance' && <span className="ml-2 text-green-500">✓</span>}
+                                </p>
+                                <div className="max-w-[300px] overflow-x-auto">
+                                  <pre className="text-xs bg-muted p-2 rounded whitespace-pre overflow-x-auto">
+                                    {JSON.stringify(call.function.arguments ? JSON.parse(call.function.arguments) : {}, null, 2)}
+                                  </pre>
+                                </div>
+                                {!respondedToolCalls[idx]?.[callIdx] && (
+                                  <div className="mt-2 flex gap-2 justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleReject(idx, callIdx)}
+                                      disabled={loadingToolCalls[idx]?.[callIdx]}
+                                    >
+                                      {loadingToolCalls[idx]?.[callIdx] ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : 'Reject'}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleAccept(idx, callIdx)}
+                                      disabled={loadingToolCalls[idx]?.[callIdx]}
+                                    >
+                                      {loadingToolCalls[idx]?.[callIdx] ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Processing...
+                                        </>
+                                      ) : 'Accept'}
+                                    </Button>
+                                  </div>
+                                )}
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
                 } else if (isTool) {
                   let toolName = '';
                   if (messageToolCallIds[idx]) {
@@ -839,7 +1011,7 @@ export default function Home() {
                                           <TableCell className="py-1">
                                             <div className="flex items-center">
                                               <span className="truncate font-mono text-xs mr-1">{c.userAddress}</span>
-                                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(c.userAddress); toast.success('Address copied');}}>
+                                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => { navigator.clipboard.writeText(c.userAddress); toast.success('Address copied'); }}>
                                                 <Copy className="h-3 w-3" />
                                               </Button>
                                             </div>
@@ -858,13 +1030,13 @@ export default function Home() {
                               </div>
                               <div className="mt-2 flex gap-2 justify-center">
                                 {sd.currentPage > 1 && (
-                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx===idx || sd.currentPage <= 1}>
-                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Previous'}
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx === idx || sd.currentPage <= 1}>
+                                    {paginationLoadingIdx === idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading</> : 'Previous'}
                                   </Button>
                                 )}
                                 {sd.pageCursors[sd.currentPage] && (
-                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx===idx || !sd.pageCursors[sd.currentPage]}>
-                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Next'}
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx === idx || !sd.pageCursors[sd.currentPage]}>
+                                    {paginationLoadingIdx === idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading</> : 'Next'}
                                   </Button>
                                 )}
                               </div>
@@ -897,17 +1069,17 @@ export default function Home() {
                                               <div className="flex items-center">
                                                 <span className="text-xs font-medium mr-1">Token:</span>
                                                 <span className="truncate font-mono text-xs mr-1">{coin.address}</span>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(coin.address);toast.success('Token address copied');}}>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => { navigator.clipboard.writeText(coin.address); toast.success('Token address copied'); }}>
                                                   <Copy className="h-3 w-3" />
                                                 </Button>
                                               </div>
                                               <div className="flex items-center">
                                                 <span className="text-xs font-medium mr-1">Creator:</span>
                                                 <span className="truncate font-mono text-xs mr-1">{coin.creatorAddress}</span>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => {navigator.clipboard.writeText(coin.creatorAddress);toast.success('Creator address copied');}}><Copy className="h-3 w-3"/></Button>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => { navigator.clipboard.writeText(coin.creatorAddress); toast.success('Creator address copied'); }}><Copy className="h-3 w-3" /></Button>
                                               </div>
                                             </div>
-                                           </TableCell>
+                                          </TableCell>
                                         </TableRow>
                                       ))
                                     ) : (
@@ -920,13 +1092,13 @@ export default function Home() {
                               </div>
                               <div className="mt-2 flex gap-2 justify-center">
                                 {sd.currentPage > 1 && (
-                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx===idx || sd.currentPage <= 1}>
-                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Previous'}
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'prev')} disabled={paginationLoadingIdx === idx || sd.currentPage <= 1}>
+                                    {paginationLoadingIdx === idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading</> : 'Previous'}
                                   </Button>
                                 )}
                                 {sd.pageCursors[sd.currentPage] && (
-                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx===idx || !sd.pageCursors[sd.currentPage]}>
-                                    {paginationLoadingIdx===idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading</> : 'Next'}
+                                  <Button size="sm" onClick={() => handlePageChange(idx, 'next')} disabled={paginationLoadingIdx === idx || !sd.pageCursors[sd.currentPage]}>
+                                    {paginationLoadingIdx === idx ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading</> : 'Next'}
                                   </Button>
                                 )}
                               </div>
@@ -944,19 +1116,19 @@ export default function Home() {
                                   <div className="text-center font-medium">Token Address</div>
                                 </div>
                                 {sd.data && sd.data.length > 0 ? (
-                                  sd.data.map((bal:any, i:number)=>(
+                                  sd.data.map((bal: any, i: number) => (
                                     <div key={i} className="grid grid-cols-3 gap-2 text-sm items-center border-b border-muted py-1">
                                       <div className="text-center py-2 truncate">{bal.coin.name} ({bal.coin.symbol})</div>
                                       <div className="text-center py-2">{parseFloat(formatUnits(BigInt(bal.balance), bal.coin.decimals)).toFixed(4)} {bal.coin.symbol}</div>
                                       <div className="text-center py-2 flex items-center justify-center">
                                         <span className="truncate font-mono text-xs mr-1">{bal.coin.address}</span>
-                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={()=>{navigator.clipboard.writeText(bal.coin.address);toast.success('Address copied');}}>
+                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1" onClick={() => { navigator.clipboard.writeText(bal.coin.address); toast.success('Address copied'); }}>
                                           <Copy className="h-3 w-3" />
                                         </Button>
                                       </div>
                                     </div>
                                   ))
-                                ): <div className="text-center py-2">No balances.</div>}
+                                ) : <div className="text-center py-2">No balances.</div>}
                               </div>
                             </>
                           ) : sd?.type === 'create_coin' ? (
@@ -968,118 +1140,118 @@ export default function Home() {
                             ) : createCancelled[idx] ? (
                               <div className="p-2 bg-muted rounded-md text-red-600 font-medium">create coin cancelled</div>
                             ) : (
-                                <form
-                                  className="space-y-2 p-2 bg-muted rounded-md"
-                                  onSubmit={async e => {
-                                    e.preventDefault();
-                                    setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = false; return arr; });
-                                    setCreateLoading(true);
-                                    const formData = new FormData(e.currentTarget);
-                                    const payload = {
-                                      collection: 'metadata',
-                                      data: {
-                                        name: formData.get('name')?.toString() || '',
-                                        symbol: formData.get('symbol')?.toString() || '',
-                                        description: formData.get('description')?.toString() || '',
-                                        payoutAddress: formData.get('payoutAddress')?.toString() as Address,
-                                        platformAddress: formData.get('platformAddress')?.toString() as Address,
-                                      },
-                                    };
-                                    try {
-                                      const res = await fetch('/api/mongo/create-data', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify(payload),
-                                      });
-                                      const created = await res.json();
-                                      if (!res.ok || !created.success) {
-                                        toast.error(created.error || 'Failed to create metadata');
-                                        throw new Error('Failed to create metadata');
-                                      }
+                              <form
+                                className="space-y-2 p-2 bg-muted rounded-md"
+                                onSubmit={async e => {
+                                  e.preventDefault();
+                                  setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = false; return arr; });
+                                  setCreateLoading(true);
+                                  const formData = new FormData(e.currentTarget);
+                                  const payload = {
+                                    collection: 'metadata',
+                                    data: {
+                                      name: formData.get('name')?.toString() || '',
+                                      symbol: formData.get('symbol')?.toString() || '',
+                                      description: formData.get('description')?.toString() || '',
+                                      payoutAddress: formData.get('payoutAddress')?.toString() as Address,
+                                      platformAddress: formData.get('platformAddress')?.toString() as Address,
+                                    },
+                                  };
+                                  try {
+                                    const res = await fetch('/api/mongo/create-data', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify(payload),
+                                    });
+                                    const created = await res.json();
+                                    if (!res.ok || !created.success) {
+                                      toast.error(created.error || 'Failed to create metadata');
+                                      throw new Error('Failed to create metadata');
+                                    }
 
-                                      // Save the image using the metadata ID as the name
-                                      const imageUrl = formData.get('imageUrl')?.toString() || '';
-                                      if (imageUrl.startsWith('data:image')) {
-                                        try {
-                                          const matches = imageUrl.match(/^data:(image\/\w+);base64,(.*)$/);
-                                          const base64Data = matches ? matches[2] : '';
-                                          if (base64Data) {
-                                            // First, get a presigned URL from MinIO
-                                            const presignRes = await fetch('/api/save-image', {
-                                              method: 'POST',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ 
-                                                getPresignedUrl: true, 
-                                                name: created.result._id 
-                                              }),
-                                            });
-                                            
-                                            if (!presignRes.ok) {
-                                              const presignErr = await presignRes.json();
-                                              toast.error(`Failed to get upload URL: ${presignErr.error || 'Unknown error'}`);
-                                              console.error('Failed to get presigned URL:', presignErr);
-                                              return;
-                                            }
-                                            
-                                            // Get the presigned URL from the response
-                                            const { presignedUrl } = await presignRes.json();
-                                            
-                                                                                         // Convert base64 to blob for upload
-                                             // Use the matches from above or extract content type from imageUrl
-                                             const contentType = matches?.[1] || 'image/png';
-                                            const binaryData = atob(base64Data);
-                                            const uint8Array = new Uint8Array(binaryData.length);
-                                            
-                                            for (let i = 0; i < binaryData.length; i++) {
-                                              uint8Array[i] = binaryData.charCodeAt(i);
-                                            }
-                                            
-                                            const blob = new Blob([uint8Array], { type: contentType });
-                                            
-                                            // Upload directly to MinIO using the presigned URL
-                                            try {
-                                              const uploadRes = await fetch(presignedUrl, {
-                                                method: 'PUT',
-                                                body: blob,
-                                                headers: {
-                                                  'Content-Type': contentType
-                                                }
-                                              });
-                                              
-                                              if (!uploadRes.ok) {
-                                                toast.error(`Failed to upload image: ${uploadRes.statusText}`);
-                                                console.error('Failed to upload image:', uploadRes);
-                                              }
-                                            } catch (uploadErr) {
-                                              toast.error('Error uploading image');
-                                              console.error('Error uploading image:', uploadErr);
-                                            }
-                                          }
-                                        } catch (imgSaveError) {
-                                          toast.error('Error saving image');
-                                          console.error('Error saving image:', imgSaveError);
-                                        }
-                                      }
-
-                                      // console.log(created)
-                                      const coinParams = {
-                                            name: formData.get('name')?.toString() || '',
-                                            symbol: formData.get('symbol')?.toString() || '',
-                                            uri: `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${created.result._id}`,
-                                            payoutRecipient: formData.get('payoutAddress')?.toString() as Address,
-                                            platformReferrer: formData.get('platformAddress')?.toString() as Address,
-                                          };
-                                          const contractCallParams = await createCoinCall(coinParams);
-                                                                 
-                                          
-                                          const tx = await writeContractAsync({
-                                            ...contractCallParams,
-                                     
+                                    // Save the image using the metadata ID as the name
+                                    const imageUrl = formData.get('imageUrl')?.toString() || '';
+                                    if (imageUrl.startsWith('data:image')) {
+                                      try {
+                                        const matches = imageUrl.match(/^data:(image\/\w+);base64,(.*)$/);
+                                        const base64Data = matches ? matches[2] : '';
+                                        if (base64Data) {
+                                          // First, get a presigned URL from MinIO
+                                          const presignRes = await fetch('/api/save-image', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              getPresignedUrl: true,
+                                              name: created.result._id
+                                            }),
                                           });
-                                       
-                                          setTxHashes(prev => { const arr = [...prev]; arr[idx] = tx; return arr; });
-                                          setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
-                                  } catch(e) {
+
+                                          if (!presignRes.ok) {
+                                            const presignErr = await presignRes.json();
+                                            toast.error(`Failed to get upload URL: ${presignErr.error || 'Unknown error'}`);
+                                            console.error('Failed to get presigned URL:', presignErr);
+                                            return;
+                                          }
+
+                                          // Get the presigned URL from the response
+                                          const { presignedUrl } = await presignRes.json();
+
+                                          // Convert base64 to blob for upload
+                                          // Use the matches from above or extract content type from imageUrl
+                                          const contentType = matches?.[1] || 'image/png';
+                                          const binaryData = atob(base64Data);
+                                          const uint8Array = new Uint8Array(binaryData.length);
+
+                                          for (let i = 0; i < binaryData.length; i++) {
+                                            uint8Array[i] = binaryData.charCodeAt(i);
+                                          }
+
+                                          const blob = new Blob([uint8Array], { type: contentType });
+
+                                          // Upload directly to MinIO using the presigned URL
+                                          try {
+                                            const uploadRes = await fetch(presignedUrl, {
+                                              method: 'PUT',
+                                              body: blob,
+                                              headers: {
+                                                'Content-Type': contentType
+                                              }
+                                            });
+
+                                            if (!uploadRes.ok) {
+                                              toast.error(`Failed to upload image: ${uploadRes.statusText}`);
+                                              console.error('Failed to upload image:', uploadRes);
+                                            }
+                                          } catch (uploadErr) {
+                                            toast.error('Error uploading image');
+                                            console.error('Error uploading image:', uploadErr);
+                                          }
+                                        }
+                                      } catch (imgSaveError) {
+                                        toast.error('Error saving image');
+                                        console.error('Error saving image:', imgSaveError);
+                                      }
+                                    }
+
+                                    // console.log(created)
+                                    const coinParams = {
+                                      name: formData.get('name')?.toString() || '',
+                                      symbol: formData.get('symbol')?.toString() || '',
+                                      uri: `${process.env.NEXT_PUBLIC_DOMAIN}/api/metadata/${created.result._id}`,
+                                      payoutRecipient: formData.get('payoutAddress')?.toString() as Address,
+                                      platformReferrer: formData.get('platformAddress')?.toString() as Address,
+                                    };
+                                    const contractCallParams = await createCoinCall(coinParams);
+
+
+                                    const tx = await writeContractAsync({
+                                      ...contractCallParams,
+
+                                    });
+
+                                    setTxHashes(prev => { const arr = [...prev]; arr[idx] = tx; return arr; });
+                                    setCreateSuccess(prev => { const arr = [...prev]; arr[idx] = true; return arr; });
+                                  } catch (e) {
                                     console.error(e);
                                     toast.error('Network error saving coin');
                                   } finally {
@@ -1249,7 +1421,7 @@ export default function Home() {
           </div>
         </CardFooter>
       </Card>
-    
+
     </main>
   );
 }

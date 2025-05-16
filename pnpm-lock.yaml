@@ -95,6 +95,9 @@ importers:
       openai:
         specifier: ^4.95.0
         version: 4.98.0(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4)
+      permissionless:
+        specifier: ^0.2.46
+        version: 0.2.46(ox@0.6.7(typescript@5.8.3)(zod@3.24.4))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.4))
       permitio:
         specifier: ^2.7.4
         version: 2.7.4
@@ -3637,6 +3640,15 @@ packages:
   path-to-regexp@8.2.0:
     resolution: {integrity: sha512-TdrF7fW9Rphjq4RjrW0Kp2AW0Ahwu9sRGTkS6bvDi0SCwZlEZYmcfDbEsTz8RVk0EHIS/Vd1bv3JhG+1xZuAyQ==}
     engines: {node: '>=16'}
+
+  permissionless@0.2.46:
+    resolution: {integrity: sha512-AKZ053h647ub35++nMPbBl06YWvTBLrEnEOFmbJDS9d1d3GtWXc+DRvOFaz2Su/tqb8kkg0wrF0uwk0oQpzLKA==}
+    peerDependencies:
+      ox: 0.6.7
+      viem: ^2.28.1
+    peerDependenciesMeta:
+      ox:
+        optional: true
 
   permitio@2.7.4:
     resolution: {integrity: sha512-kKQHwAW6gdhy+1YmCEReWQrc2vUtVpRaPCiWODKH+YjvD0gR+F+EJUryA9KSRpE8BIX0TCWcGUlZRLl+72pfvg==}
@@ -9567,6 +9579,12 @@ snapshots:
   path-to-regexp@6.3.0: {}
 
   path-to-regexp@8.2.0: {}
+
+  permissionless@0.2.46(ox@0.6.7(typescript@5.8.3)(zod@3.24.4))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.4)):
+    dependencies:
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.4)
+    optionalDependencies:
+      ox: 0.6.7(typescript@5.8.3)(zod@3.24.4)
 
   permitio@2.7.4:
     dependencies:
