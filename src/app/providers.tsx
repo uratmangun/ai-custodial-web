@@ -14,13 +14,13 @@ export const config = createConfig({
   chains: [baseSepolia, base],
   connectors: [
     coinbaseWallet({
-      appName: "My Sub Account Demo",
+      appName: "Zora xmtp group creator",
       preference: {
         keysUrl: "https://keys-dev.coinbase.com/connect",
         options: "smartWalletOnly",
       },
       subAccounts: {
-        enableAutoSubAccounts: true,
+        enableAutoSubAccounts: false,
         defaultSpendLimits: {
           84532: [
             {

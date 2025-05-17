@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { ConnectButton } from '@/components/custom/ConnectButton';
 import { ChainSelector } from '@/components/custom/ChainSelector';
 import { useRouter } from 'next/navigation';
-import { useAccount,useChainId, useConfig, useSwitchChain,useWriteContract,useConnect,useDisconnect } from 'wagmi';
+import { useAccount,useSendTransaction,useChainId, useConfig, useSwitchChain,useWriteContract,useConnect,useDisconnect } from 'wagmi';
 import { formatEther, parseEther, zeroAddress, parseUnits, formatUnits, keccak256, encodePacked, toHex, maxUint256 } from 'viem'
 import type { Address } from 'viem';
 import { getPublicClient } from 'wagmi/actions'
@@ -21,15 +21,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { createCoinCall, getCoinCreateFromLogs } from "@zoralabs/coins-sdk";
 import { getTransactionReceipt } from '@wagmi/core';
 import { sdk } from '@farcaster/frame-sdk'
-<<<<<<< Updated upstream
-
-=======
-import {
-  Implementation,
-  toMetaMaskSmartAccount,
-  createDelegation
-} from "@metamask/delegation-toolkit";
->>>>>>> Stashed changes
 
 
 export default function Home() {
@@ -55,33 +46,6 @@ export default function Home() {
   const [respondedToolCalls, setRespondedToolCalls] = useState<boolean[][]>([]);
   const [loadingToolCalls, setLoadingToolCalls] = useState<boolean[][]>([]);
   const [paginationLoadingIdx, setPaginationLoadingIdx] = useState<number | null>(null);
-<<<<<<< Updated upstream
-  const [comboboxOpen, setComboboxOpen] = useState(false);
-  const [comboboxValue, setComboboxValue] = useState("");
-  const [tokens, setTokens] = useState([
-    { name: 'Token A', address: '0xabc123...', amount: 100 },
-    { name: 'Token B', address: '0xdef456...', amount: 250 },
-    { name: 'Token C', address: '0xghi789...', amount: 50 },
-  ]);
-  const [sortAsc, setSortAsc] = useState(true);
-  const sortedTokens = [...tokens].sort((a, b) => sortAsc ? a.amount - b.amount : b.amount - a.amount);
-  const [selectedChain, setSelectedChain] = useState<string>("8453");
-  const [transactions, setTransactions] = useState<{ txHash: string; address: string; chainId: string; date: string; }[]>([]);
-  const [createCoinTxs, setCreateCoinTxs] = useState<{ txHash: string; address: string; metadataId: string; date: string; }[]>([]);
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId()
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const config = useConfig()
-  const chain = config.chains.find((c) => c.id === chainId)
-  const publicClient = getPublicClient(config, { chainId })
-  const { switchChain } = useSwitchChain()
-  const { writeContractAsync } = useWriteContract(); 
-  const { connectors, connect, status, error: connectError } = useConnect()
-  const { disconnect } = useDisconnect()
-
- 
- 
-=======
 
   const account = useAccount();
   const { address} = account;
@@ -90,7 +54,6 @@ export default function Home() {
   const config = useConfig()
 
   const publicClient = getPublicClient(config, { chainId }) as NonNullable<ReturnType<typeof getPublicClient>>
->>>>>>> Stashed changes
 
   const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -231,11 +194,7 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-<<<<<<< Updated upstream
         body: JSON.stringify({ messages: payloadMessages}),
-=======
-        body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }] }),
->>>>>>> Stashed changes
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -243,54 +202,17 @@ export default function Home() {
         return;
       }
       const { content: aiContent, tool_calls } = await res.json();
-<<<<<<< Updated upstream
       setMessages(prev => [...prev, aiContent]);
-=======
-
-      // If content is empty, try the fallback endpoint
-      let finalContent = aiContent;
-      let finalToolCalls = tool_calls;
-
-      if ((!aiContent || aiContent.trim() === '') && (!tool_calls || tool_calls.length === 0)) {
-        try {
-          const fallbackRes = await fetch('/api/chat-fallback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: [{ role: 'user', content: userMsg }] }),
-          });
-
-          if (fallbackRes.ok) {
-            const fallbackData = await fallbackRes.json();
-            if (fallbackData.content && fallbackData.content.trim() !== '') {
-              finalContent = fallbackData.content;
-              finalToolCalls = fallbackData.tool_calls || tool_calls;
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Error with fallback API:', fallbackError);
-          // Continue with empty content if fallback fails
-        }
-      }
-
-      setMessages(prev => [...prev, finalContent]);
->>>>>>> Stashed changes
       setMessageRoles(prev => [...prev, 'assistant']);
       setMessageToolCallIds(prev => [...prev, tool_calls?.[0]?.id || '']);
       setIsUserMessage(prev => [...prev, false]);
       setUsernames(prev => [...prev, 'AI']);
       setDates(prev => [...prev, formatDate(new Date())]);
       setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-<<<<<<< Updated upstream
       setToolCalls(prev => [...prev, tool_calls || []]);
       setRespondedToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
       setLoadingToolCalls(prev => [...prev, (tool_calls || []).map(() => false)]);
       setMessageStructuredData(prev => [...prev, null]); 
-=======
-      setToolCalls(prev => [...prev, finalToolCalls || []]);
-      setRespondedToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
-      setLoadingToolCalls(prev => [...prev, (finalToolCalls || []).map(() => false)]);
-      setMessageStructuredData(prev => [...prev, null]);
->>>>>>> Stashed changes
     } catch (error) {
       console.error('Error fetching AI response:', error);
       toast.error(error instanceof Error ? error.message : 'Unknown error');
@@ -486,7 +408,6 @@ export default function Home() {
           const lines: string[] = [];
           lines.push(`- **Coin:** ${coin.name} (${coin.symbol})`);
           lines.push(`- **Address:** ${coin.address}`);
-<<<<<<< Updated upstream
           lines.push(`- **Chain:** ${coin.chainId===84532?'Base Sepolia':'Base'}`);
 
           let displayDescription = coin.description; // Default description
@@ -509,10 +430,6 @@ export default function Home() {
           }
 
           if (displayDescription) lines.push(`- **Description:** ${displayDescription}`);
-=======
-          lines.push(`- **Chain:** ${coin.chainId === 84532 ? 'Base Sepolia' : 'Base'}`);
-          if (coin.description) lines.push(`- **Description:** ${coin.description}`);
->>>>>>> Stashed changes
           lines.push(`- **Total Supply:** ${coin.totalSupply ?? 'N/A'}`);
           lines.push(`- **Market Cap:** ${coin.marketCap ?? 'N/A'}`);
           lines.push(`- **24h Volume:** ${coin.volume24h ?? 'N/A'}`);
@@ -666,41 +583,7 @@ export default function Home() {
                 recipient: address as Address,
                 orderSize: parseEther(String(amount)), // Use fetched decimals
                 minAmountOut: parseEther('0.1'),
-<<<<<<< Updated upstream
               }
-=======
-              },
-            });
-            tx = await writeContractAsync({ ...params });
-          }
-          const aiMsg = `Executed ${direction}: ${amount} ${direction === 'buy' ? 'ETH' : ''} ${coinAddress}. TX: ${tx}`;
-          setMessages(prev => [...prev, aiMsg]);
-          setMessageRoles(prev => [...prev, 'tool']);
-          setMessageToolCallIds(prev => [...prev, tc.id]);
-          setIsUserMessage(prev => [...prev, false]);
-          setUsernames(prev => [...prev, 'AI']);
-          setDates(prev => [...prev, formatDate(new Date())]);
-          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-          setToolCalls(prev => [...prev, []]);
-          setRespondedToolCalls(prev => [...prev, []]);
-          setMessageStructuredData(prev => [...prev, null]);
-        } catch (err) {
-          toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
-      } else if (toolName === 'transfer') {
-        const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {};
-        const { address: recipientAddress, amount, token } = args;
-
-        try {
-          let tx: string;
-          if (token) {
-            // ERC20 token transfer
-            const params = {
-              address: token as Address,
-              abi: erc20Abi,
-              functionName: 'transfer' as const, // Use 'as const' to tell TypeScript this is a literal value
-              args: [recipientAddress as Address, parseEther(amount)] as const // Type the args array as const
->>>>>>> Stashed changes
             };
             contractCallParams = tradeCoinCall(tradeParams);
             tx = await writeContractAsync({
@@ -718,12 +601,6 @@ export default function Home() {
             return;
           }
 
-<<<<<<< Updated upstream
-=======
-          const tokenDisplay = token ? `tokens (${token})` : 'ETH';
-          const aiMsg = `Transferred ${amount} ${tokenDisplay} to ${recipientAddress}. TX: ${tx}`;
-
->>>>>>> Stashed changes
           setMessages(prev => [...prev, aiMsg]);
           setMessageRoles(prev => [...prev, 'tool']);
           setMessageToolCallIds(prev => [...prev, tc.id || '']);
@@ -735,72 +612,7 @@ export default function Home() {
           setRespondedToolCalls(prev => [...prev, []]);
           setMessageStructuredData(prev => [...prev, null]);
         } catch (err) {
-<<<<<<< Updated upstream
           toast.error(`Error executing trade: ${err instanceof Error ? err.message : 'Unknown error'}`);
-=======
-          toast.error(`Error executing transfer: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
-      } else if (toolName === 'create_delegation_account') {
-        try {
-          const smartAccount = await toMetaMaskSmartAccount({
-            client: publicClient,
-            implementation: Implementation.Hybrid,
-            deployParams: [account.address, [], [], []],
-            deploySalt,
-            signatory: { account },
-          });
-          const delegation = createDelegation({
-            to: smartAccount.address,
-            from: smartAccount.address,
-            caveats: [] // Empty caveats array - we recommend adding appropriate restrictions.
-          });
-          const aiMsg = `Created delegation account: ${smartAccount.address}`;
-
-          setMessages(prev => [...prev, aiMsg]);
-          setMessageRoles(prev => [...prev, 'tool']);
-          setMessageToolCallIds(prev => [...prev, tc.id]);
-          setIsUserMessage(prev => [...prev, false]);
-          setUsernames(prev => [...prev, 'AI']);
-          setDates(prev => [...prev, formatDate(new Date())]);
-          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-          setToolCalls(prev => [...prev, []]);
-          setRespondedToolCalls(prev => [...prev, []]);
-          setMessageStructuredData(prev => [...prev, {
-            type: 'create_delegation_account',
-            data: delegationAccount
-          }]);
-        } catch (err) {
-          toast.error(`Error creating delegation account: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
-      } else if (toolName === 'list_delegation_accounts') {
-        try {
-          const accounts = await listDelegationAccounts();
-
-          if (accounts.length === 0) {
-            setMessages(prev => [...prev, "No delegation accounts found."]);
-          } else {
-            const accountList = accounts.map((acc: { address: string, createdAt: string }, i: number) =>
-              `${i + 1}. Address: ${acc.address}\n   Created: ${acc.createdAt}`
-            ).join('\n\n');
-
-            setMessages(prev => [...prev, `Delegation accounts:\n\n${accountList}`]);
-          }
-
-          setMessageRoles(prev => [...prev, 'tool']);
-          setMessageToolCallIds(prev => [...prev, tc.id]);
-          setIsUserMessage(prev => [...prev, false]);
-          setUsernames(prev => [...prev, 'AI']);
-          setDates(prev => [...prev, formatDate(new Date())]);
-          setTimestamps(prev => [...prev, new Date().toLocaleTimeString()]);
-          setToolCalls(prev => [...prev, []]);
-          setRespondedToolCalls(prev => [...prev, []]);
-          setMessageStructuredData(prev => [...prev, {
-            type: 'list_delegation_accounts',
-            data: accounts
-          }]);
-        } catch (err) {
-          toast.error(`Error listing delegation accounts: ${err instanceof Error ? err.message : 'Unknown error'}`);
->>>>>>> Stashed changes
         }
       }
     } catch (error) {
